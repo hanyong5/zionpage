@@ -4,6 +4,7 @@ import HomeComp from "./pages/HomeComp";
 import { Link, Route, Routes } from "react-router-dom";
 import ZionComp from "./pages/zion/ZionComp";
 import CalendarComp from "./pages/calen/CalendarComp";
+import NotFound from "./pages/NotFound";
 
 function App() {
   return (
@@ -21,6 +22,7 @@ function App() {
         <Route path="/" element={<HomeComp />} />
         <Route path="/zion/*" element={<ZionComp />} />
         <Route path="/calen/*" element={<CalendarComp />} />
+        <Route path="*" element={<NotFound />} />
       </Routes>
     </div>
   );
