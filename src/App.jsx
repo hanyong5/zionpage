@@ -19,7 +19,6 @@ function App() {
 
       <Routes>
         <Route path="/" element={<HomeComp />} />
-
         <Route path="/zion/*" element={<ZionComp />} />
         <Route path="/calen/*" element={<CalendarComp />} />
       </Routes>
