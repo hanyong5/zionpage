@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useZion } from "../context/ZionContext";
+import supabase from "../../utils/supabase";
 
 const PARTS = ["SOPRANO", "ALTO", "TENOR", "BASS"];
 
@@ -17,7 +18,10 @@ function ZionModi() {
     memo: "",
     join_date: "",
     is_active: true,
+    photo: "",
   });
+  const [previewImage, setPreviewImage] = useState(null);
+  const [uploading, setUploading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -35,7 +39,11 @@ function ZionModi() {
           memo: member.memo || "",
           join_date: member.join_date || "",
           is_active: member.is_active !== false,
+          photo: member.photo || "",
         });
+        if (member.photo) {
+          setPreviewImage(member.photo);
+        }
         setLoading(false);
       } else if (!contextLoading) {
         // 멤버를 찾을 수 없을 때
@@ -58,6 +66,71 @@ function ZionModi() {
     setFormData((prev) => ({
       ...prev,
       [name]: type === "checkbox" ? checked : value,
+    }));
+  };
+
+  // 이미지 파일 선택 핸들러
+  const handleImageChange = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    // 이미지 파일인지 확인
+    if (!file.type.startsWith("image/")) {
+      setError("이미지 파일만 업로드 가능합니다.");
+      return;
+    }
+
+    // 파일 크기 확인 (5MB 제한)
+    if (file.size > 5 * 1024 * 1024) {
+      setError("파일 크기는 5MB 이하여야 합니다.");
+      return;
+    }
+
+    setUploading(true);
+    setError(null);
+
+    try {
+      // 파일명 생성 (고유한 이름)
+      const fileExt = file.name.split(".").pop();
+      const fileName = `${id}_${Date.now()}.${fileExt}`;
+      const filePath = `members/${fileName}`;
+
+      // Supabase Storage에 업로드
+      const { error: uploadError } = await supabase.storage
+        .from("photo")
+        .upload(filePath, file, {
+          cacheControl: "3600",
+          upsert: true,
+        });
+
+      if (uploadError) {
+        throw uploadError;
+      }
+
+      // 공개 URL 가져오기
+      const {
+        data: { publicUrl },
+      } = supabase.storage.from("photo").getPublicUrl(filePath);
+
+      // 미리보기 설정
+      setPreviewImage(publicUrl);
+      setFormData((prev) => ({
+        ...prev,
+        photo: publicUrl,
+      }));
+    } catch (err) {
+      setError("이미지 업로드에 실패했습니다: " + err.message);
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  // 이미지 삭제 핸들러
+  const handleImageRemove = () => {
+    setPreviewImage(null);
+    setFormData((prev) => ({
+      ...prev,
+      photo: "",
     }));
   };
 
@@ -165,6 +238,51 @@ function ZionModi() {
             onChange={handleChange}
             className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
           />
+        </div>
+
+        {/* 사진 첨부 */}
+        <div>
+          <label className="block text-sm font-medium mb-2">사진</label>
+          <div className="flex flex-col gap-4">
+            {/* 이미지 미리보기 */}
+            {previewImage && (
+              <div className="relative inline-block">
+                <img
+                  src={previewImage}
+                  alt="프로필 미리보기"
+                  className="w-[200px] h-[200px] object-cover border rounded-lg"
+                />
+                <button
+                  type="button"
+                  onClick={handleImageRemove}
+                  className="absolute top-2 right-2 bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs hover:bg-red-600"
+                >
+                  ×
+                </button>
+              </div>
+            )}
+
+            {/* 파일 선택 */}
+            <div>
+              <input
+                type="file"
+                id="photo"
+                name="photo"
+                accept="image/*"
+                onChange={handleImageChange}
+                disabled={uploading}
+                className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary disabled:opacity-50"
+              />
+              {uploading && (
+                <p className="text-sm text-muted-foreground mt-1">
+                  업로드 중...
+                </p>
+              )}
+              <p className="text-xs text-muted-foreground mt-1">
+                이미지 크기: 200x200px, 최대 5MB
+              </p>
+            </div>
+          </div>
         </div>
 
         {/* 가입일 입력 */}
