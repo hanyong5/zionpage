@@ -104,7 +104,7 @@ function Calendar() {
             성가대일정
           </CardTitle>
         </CardHeader>
-        <CardContent className="space-y-4 sm:space-y-6 p-4 sm:p-6">
+        <CardContent>
           {/* 선택한 날짜 정보 */}
 
           {/* 커스텀 달력 - 반응형 크기 (화면에 자동 맞춤) */}

@@ -49,34 +49,35 @@ function CalenList() {
                       <h3 className="text-lg sm:text-xl font-semibold">
                         {song.title || "제목 없음"}
                       </h3>
-                      <div className="flex gap-2 ml-4">
-                        <Link
-                          to={`/calen/modify/${song.id}`}
-                          className="px-3 py-1 text-sm bg-primary text-primary-foreground rounded-md hover:bg-primary/90 transition-colors"
-                        >
-                          수정
-                        </Link>
-                        <button className="px-3 py-1 text-sm bg-destructive text-destructive-foreground rounded-md hover:bg-destructive/90 transition-colors">
-                          삭제
-                        </button>
-                      </div>
                     </div>
                   </div>
 
                   <div className="flex items-center justify-between">
                     <Link
                       to={`/calen/view/${song.id}`}
-                      className="px-3 py-1 text-sm bg-secondary text-secondary-foreground rounded-md hover:bg-secondary/90 transition-colors"
+                      className="px-3 py-1 text-sm bg-primary text-secondary-foreground text-white rounded-md hover:bg-secondary/90 transition-colors"
                     >
-                      내용보기
+                      찬양보기
                     </Link>
+
                     {song.singdate && (
-                      <div className="text-sm text-muted-foreground">
-                        {format(new Date(song.singdate), "yyyy년 MM월 dd일", {
+                      <div className="text-lg font-bold text-muted-foreground">
+                        {format(new Date(song.singdate), "yyyy / MM / dd", {
                           locale: ko,
                         })}
                       </div>
                     )}
+                    <div className="flex gap-2 ml-4">
+                      <Link
+                        to={`/calen/modify/${song.id}`}
+                        className="px-3 py-1 text-sm bg-primary text-primary-foreground rounded-md hover:bg-primary/90 transition-colors"
+                      >
+                        M
+                      </Link>
+                      <button className="px-3 py-1 text-sm bg-destructive text-destructive-foreground text-white rounded-md hover:bg-destructive/90 transition-colors">
+                        D
+                      </button>
+                    </div>
                   </div>
 
                   {/* type이 없거나 다른 값인 경우 */}

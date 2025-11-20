@@ -15,9 +15,7 @@ function CustomCalendar({
   songsByDate = {},
   className,
 }) {
-  const [viewDate, setViewDate] = React.useState(
-    currentDate || new Date()
-  );
+  const [viewDate, setViewDate] = React.useState(currentDate || new Date());
 
   const today = new Date();
   today.setHours(0, 0, 0, 0);
@@ -149,7 +147,9 @@ function CustomCalendar({
       checkDate = new Date(nextYear, nextMonth, day);
     }
     checkDate.setHours(0, 0, 0, 0);
-    const dateKey = `${checkDate.getFullYear()}-${String(checkDate.getMonth() + 1).padStart(2, '0')}-${String(checkDate.getDate()).padStart(2, '0')}`;
+    const dateKey = `${checkDate.getFullYear()}-${String(
+      checkDate.getMonth() + 1
+    ).padStart(2, "0")}-${String(checkDate.getDate()).padStart(2, "0")}`;
     return holidayNames[dateKey] || null;
   };
 
@@ -193,7 +193,12 @@ function CustomCalendar({
   };
 
   return (
-    <div className={cn("rounded-md border p-3 sm:p-4 md:p-6 bg-card w-full", className)}>
+    <div
+      className={cn(
+        "rounded-md border p-3 sm:p-4 md:p-6 bg-card w-full",
+        className
+      )}
+    >
       {/* 헤더 - 월/년 표시 및 네비게이션 */}
       <div className="flex items-center justify-between mb-4">
         <button
@@ -204,7 +209,7 @@ function CustomCalendar({
           <ChevronLeft className="h-4 w-4 sm:h-5 sm:w-5" />
         </button>
         <div className="flex items-center gap-2">
-          <h2 className="text-base sm:text-lg md:text-xl font-semibold">
+          <h2 className="text-base text-lg  font-semibold">
             {year}년 {month + 1}월
           </h2>
           <button
@@ -248,7 +253,8 @@ function CustomCalendar({
             month === 0 ? 11 : month - 1,
             day
           );
-          const isSelected = selectedDate && isSameDate(clickDate, selectedDate);
+          const isSelected =
+            selectedDate && isSameDate(clickDate, selectedDate);
           const isHolidayDay = isHoliday(day, false, true);
           const holidayName = getHolidayName(day, false, true);
           const dayEvents = getEventsForDate(day, false, true);
@@ -308,7 +314,7 @@ function CustomCalendar({
                     </>
                   );
                 })()}
-                
+
                 {/* 찬양 표시 (3칸 정도 크기) */}
                 {daySongs.length > 0 && (
                   <div className="flex-1 flex flex-col justify-start mt-1">
@@ -317,13 +323,13 @@ function CustomCalendar({
                         key={song.id || idx}
                         className={cn(
                           "px-1.5 py-1 mb-1 rounded font-semibold break-words",
-                          "text-[10px] sm:text-xs md:text-sm",
+                          "text-[10px]  md:text-sm",
                           "bg-green-500/25 text-green-800",
-                          "min-h-[2rem] flex items-center"
+                          "min-h-[2rem] flex items-center "
                         )}
                         title={song.title || "제목 없음"}
                       >
-                        <span className="line-clamp-2 leading-tight">
+                        <span className="line-clamp-2 leading-tight ">
                           {song.title || "제목 없음"}
                         </span>
                       </div>
@@ -363,7 +369,7 @@ function CustomCalendar({
               <button
                 onClick={() => handleDateClick(day, true, false)}
                 className={cn(
-                  "flex-shrink-0 h-8 w-full sm:h-10 md:h-12 flex items-center justify-center text-xs sm:text-sm md:text-base relative transition-colors",
+                  "flex-shrink-0 h-8 w-full sm:h-10 md:h-12 flex items-center justify-center text-lg relative transition-colors",
                   "hover:bg-accent",
                   isToday && !isSelected && "bg-accent font-bold",
                   isSelected &&
@@ -423,24 +429,22 @@ function CustomCalendar({
                     </>
                   );
                 })()}
-                
+
                 {/* 찬양 표시 (3칸 정도 크기) */}
                 {daySongs.length > 0 && (
-                  <div className="flex-1 flex flex-col justify-start mt-1">
+                  <div className="flex-1 flex flex-col justify-start mt-1 ">
                     {daySongs.slice(0, 3).map((song, idx) => (
                       <div
                         key={song.id || idx}
                         className={cn(
                           "px-1.5 py-1 mb-1 rounded font-semibold break-words",
                           "text-[10px] sm:text-xs md:text-sm",
-                          isSelected
-                            ? "bg-green-500/30 text-green-100"
-                            : "bg-green-500/25 text-green-800",
+
                           "min-h-[2rem] flex items-center"
                         )}
                         title={song.title || "제목 없음"}
                       >
-                        <span className="line-clamp-2 leading-tight">
+                        <span className="line-clamp-2 leading-tight absolute bg-amber-300 p-2 text-lg rounded-md">
                           {song.title || "제목 없음"}
                         </span>
                       </div>
@@ -471,7 +475,8 @@ function CustomCalendar({
             month === 11 ? 0 : month + 1,
             day
           );
-          const isSelected = selectedDate && isSameDate(clickDate, selectedDate);
+          const isSelected =
+            selectedDate && isSameDate(clickDate, selectedDate);
           const isHolidayDay = isHoliday(day, false, false);
           const holidayName = getHolidayName(day, false, false);
           const dayEvents = getEventsForDate(day, false, false);
@@ -531,7 +536,7 @@ function CustomCalendar({
                     </>
                   );
                 })()}
-                
+
                 {/* 찬양 표시 (3칸 정도 크기) */}
                 {daySongs.length > 0 && (
                   <div className="flex-1 flex flex-col justify-start mt-1">
@@ -568,4 +573,3 @@ function CustomCalendar({
 }
 
 export default CustomCalendar;
-

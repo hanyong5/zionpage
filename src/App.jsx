@@ -5,6 +5,7 @@ import { Link, Route, Routes } from "react-router-dom";
 import ZionComp from "./pages/zion/ZionComp";
 import CalendarComp from "./pages/calen/CalendarComp";
 import NotFound from "./pages/NotFound";
+import PartyComp from "./pages/party/PartyComp";
 
 function App() {
   return (
@@ -15,6 +16,7 @@ function App() {
           <Link to="/">Home</Link>
           <Link to="/zion">Members</Link>
           <Link to="/calen">Calendar</Link>
+          <Link to="/party">Party</Link>
         </div>
       </nav>
 
@@ -22,6 +24,7 @@ function App() {
         <Route path="/" element={<HomeComp />} />
         <Route path="/zion/*" element={<ZionComp />} />
         <Route path="/calen/*" element={<CalendarComp />} />
+        <Route path="/party/*" element={<PartyComp />} />
         <Route path="*" element={<NotFound />} />
       </Routes>
     </div>
