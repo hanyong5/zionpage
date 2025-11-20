@@ -259,7 +259,7 @@ function Attend() {
               {getMemberAttendance(selectedMember.id) ? "수정" : "등록"}
             </CardTitle>
           </CardHeader>
-          <CardContent className="space-y-4">
+          <CardContent className="space-y-4 p-4">
             {/* 핸드폰 번호 뒤 4자리 입력 */}
             <div>
               <label className="block text-sm font-medium mb-2">

@@ -25,6 +25,7 @@ function ZionModi() {
   const [submitting, setSubmitting] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [originalPhoto, setOriginalPhoto] = useState(null); // 원본 사진 URL 저장
 
   // 멤버 데이터 로드
   useEffect(() => {
@@ -43,6 +44,7 @@ function ZionModi() {
         });
         if (member.photo) {
           setPreviewImage(member.photo);
+          setOriginalPhoto(member.photo); // 원본 사진 URL 저장
         }
         setLoading(false);
       } else if (!contextLoading) {
@@ -69,6 +71,84 @@ function ZionModi() {
     }));
   };
 
+  // 이미지를 정확히 200x200으로 리사이즈하는 함수 (중앙 크롭)
+  const resizeImage = (file, targetWidth = 200, targetHeight = 200) => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.readAsDataURL(file);
+      reader.onload = (event) => {
+        const img = new Image();
+        img.src = event.target.result;
+        img.onload = () => {
+          const canvas = document.createElement("canvas");
+          canvas.width = targetWidth;
+          canvas.height = targetHeight;
+          const ctx = canvas.getContext("2d");
+
+          // 이미지 품질 향상을 위한 설정
+          ctx.imageSmoothingEnabled = true;
+          ctx.imageSmoothingQuality = "high";
+
+          // 원본 이미지의 비율 계산
+          const imgWidth = img.width;
+          const imgHeight = img.height;
+          const imgAspect = imgWidth / imgHeight;
+          const targetAspect = targetWidth / targetHeight;
+
+          let sourceX = 0;
+          let sourceY = 0;
+          let sourceWidth = imgWidth;
+          let sourceHeight = imgHeight;
+
+          // 중앙 크롭 계산
+          if (imgAspect > targetAspect) {
+            // 이미지가 더 넓은 경우: 높이 기준으로 크롭
+            sourceHeight = imgHeight;
+            sourceWidth = imgHeight * targetAspect;
+            sourceX = (imgWidth - sourceWidth) / 2;
+          } else {
+            // 이미지가 더 높은 경우: 너비 기준으로 크롭
+            sourceWidth = imgWidth;
+            sourceHeight = imgWidth / targetAspect;
+            sourceY = (imgHeight - sourceHeight) / 2;
+          }
+
+          // 배경을 흰색으로 채우기
+          ctx.fillStyle = "#FFFFFF";
+          ctx.fillRect(0, 0, targetWidth, targetHeight);
+
+          // 이미지를 정확히 200x200으로 리사이즈하여 그리기
+          ctx.drawImage(
+            img,
+            sourceX,
+            sourceY,
+            sourceWidth,
+            sourceHeight,
+            0,
+            0,
+            targetWidth,
+            targetHeight
+          );
+
+          // JPEG로 변환 (품질 0.95)
+          canvas.toBlob(
+            (blob) => {
+              if (blob) {
+                resolve(blob);
+              } else {
+                reject(new Error("이미지 리사이즈에 실패했습니다."));
+              }
+            },
+            "image/jpeg",
+            0.95
+          );
+        };
+        img.onerror = (error) => reject(error);
+      };
+      reader.onerror = (error) => reject(error);
+    });
+  };
+
   // 이미지 파일 선택 핸들러
   const handleImageChange = async (e) => {
     const file = e.target.files[0];
@@ -80,25 +160,42 @@ function ZionModi() {
       return;
     }
 
-    // 파일 크기 확인 (5MB 제한)
-    if (file.size > 5 * 1024 * 1024) {
-      setError("파일 크기는 5MB 이하여야 합니다.");
-      return;
-    }
-
     setUploading(true);
     setError(null);
 
     try {
+      // 기존 사진이 있고 새 사진을 업로드하는 경우, 기존 파일 삭제
+      if (originalPhoto && originalPhoto !== formData.photo) {
+        try {
+          const urlParts = originalPhoto.split("/photo/");
+          if (urlParts.length > 1) {
+            const oldFilePath = urlParts[1];
+            await supabase.storage.from("photo").remove([oldFilePath]);
+          }
+        } catch (err) {
+          console.error("기존 파일 삭제 오류:", err);
+          // 삭제 실패해도 계속 진행
+        }
+      }
+
+      // 이미지를 200x200으로 리사이즈
+      const resizedBlob = await resizeImage(file, 200, 200);
+
       // 파일명 생성 (고유한 이름)
-      const fileExt = file.name.split(".").pop();
+      const fileExt = file.name.split(".").pop() || "jpg";
       const fileName = `${id}_${Date.now()}.${fileExt}`;
       const filePath = `members/${fileName}`;
+
+      // 리사이즈된 이미지를 File 객체로 변환
+      const resizedFile = new File([resizedBlob], fileName, {
+        type: file.type,
+        lastModified: Date.now(),
+      });
 
       // Supabase Storage에 업로드
       const { error: uploadError } = await supabase.storage
         .from("photo")
-        .upload(filePath, file, {
+        .upload(filePath, resizedFile, {
           cacheControl: "3600",
           upsert: true,
         });
@@ -126,7 +223,35 @@ function ZionModi() {
   };
 
   // 이미지 삭제 핸들러
-  const handleImageRemove = () => {
+  const handleImageRemove = async () => {
+    const currentPhoto = formData.photo;
+
+    // Storage에서 파일 삭제
+    if (currentPhoto) {
+      try {
+        // URL에서 파일 경로 추출
+        // URL 형식: https://...supabase.co/storage/v1/object/public/photo/members/filename.jpg
+        const urlParts = currentPhoto.split("/photo/");
+        if (urlParts.length > 1) {
+          const filePath = urlParts[1];
+
+          // Supabase Storage에서 파일 삭제
+          const { error: deleteError } = await supabase.storage
+            .from("photo")
+            .remove([filePath]);
+
+          if (deleteError) {
+            console.error("파일 삭제 오류:", deleteError);
+            // 삭제 실패해도 로컬 상태는 업데이트
+          }
+        }
+      } catch (err) {
+        console.error("파일 삭제 중 오류:", err);
+        // 삭제 실패해도 로컬 상태는 업데이트
+      }
+    }
+
+    // 로컬 상태 업데이트
     setPreviewImage(null);
     setFormData((prev) => ({
       ...prev,

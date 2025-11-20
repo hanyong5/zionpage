@@ -25,7 +25,7 @@ function ZionList() {
   return (
     <div className="p-6">
       <h2 className="text-3xl font-bold mb-6">파트별 멤버 리스트</h2>
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-6">
         {PARTS.map((part) => {
           const partMembers = getMembersByPart(part);
           return (
@@ -44,30 +44,43 @@ function ZionList() {
                   인원추가
                 </Link>
               </h3>
-              <ul className="space-y-2">
+              <div className="grid grid-cols-4 gap-2">
                 {partMembers.length > 0 ? (
                   partMembers.map((member) => (
-                    <li
+                    <div
                       key={member.id}
-                      className="p-2 bg-muted rounded hover:bg-accent transition-colors flex justify-between items-center"
+                      className="border rounded-lg p-3 bg-card hover:bg-accent transition-colors flex flex-col items-center text-center"
                     >
-                      <div className="font-medium">
+                      <div className="mb-2">
+                        {member.photo ? (
+                          <img
+                            src={member.photo}
+                            alt={member.name}
+                            className="w-[50px] h-[50px] rounded-3xl object-cover mx-auto"
+                          />
+                        ) : (
+                          <div className="w-[50px] h-[50px] rounded-3xl bg-gray-300 flex items-center justify-center text-4xl font-semibold text-gray-700">
+                            {member.name ? member.name[0] : "?"}
+                          </div>
+                        )}
+                      </div>
+                      <div className="font-medium text-sm mb-2">
                         {member.name || "이름 없음"}
                       </div>
                       <Link
                         to={`/zion/modify/${member.id}`}
-                        className="ml-2 text-sm text-primary hover:text-primary/80 hover:underline transition-colors"
+                        className="text-xs text-primary hover:text-primary/80 hover:underline transition-colors"
                       >
                         수정
                       </Link>
-                    </li>
+                    </div>
                   ))
                 ) : (
-                  <li className="text-muted-foreground text-sm">
+                  <div className="col-span-3 text-muted-foreground text-sm text-center py-4">
                     멤버가 없습니다
-                  </li>
+                  </div>
                 )}
-              </ul>
+              </div>
             </div>
           );
         })}

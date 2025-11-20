@@ -282,7 +282,7 @@ function AttendModal({ party, onClose }) {
                   {getMemberAttendance(selectedMember.id) ? "수정" : "등록"}
                 </CardTitle>
               </CardHeader>
-              <CardContent className="space-y-4">
+              <CardContent className="space-y-4 p-4">
                 {/* 핸드폰 번호 뒤 4자리 입력 */}
                 <div>
                   <label className="block text-sm font-medium mb-2">
@@ -292,7 +292,9 @@ function AttendModal({ party, onClose }) {
                     type="text"
                     value={phoneLast4}
                     onChange={(e) => {
-                      const value = e.target.value.replace(/\D/g, "").slice(0, 4);
+                      const value = e.target.value
+                        .replace(/\D/g, "")
+                        .slice(0, 4);
                       setPhoneLast4(value);
                       setError(null);
                     }}
@@ -369,4 +371,3 @@ function AttendModal({ party, onClose }) {
 }
 
 export default AttendModal;
-
