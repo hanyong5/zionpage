@@ -120,10 +120,13 @@ function PartList() {
                   >
                     <div className="flex flex-col gap-3">
                       <div className="flex items-center justify-between">
-                        <div className="flex flex-col gap-2">
-                          <h3 className="text-lg sm:text-xl font-semibold">
+                        <div className="flex flex-col gap-2 flex-1">
+                          <Link
+                            to={`/party/view/${party.id}`}
+                            className="text-lg sm:text-xl font-semibold hover:text-primary transition-colors cursor-pointer"
+                          >
                             {party.title || "제목 없음"}
-                          </h3>
+                          </Link>
                           {party.party_date && (
                             <div className="text-sm sm:text-base font-medium text-muted-foreground">
                               {format(

@@ -194,10 +194,7 @@ function CustomCalendar({
 
   return (
     <div
-      className={cn(
-        "rounded-md border p-3 sm:p-4 md:p-6 bg-card w-full",
-        className
-      )}
+      className={cn("rounded-md p-2 sm:p-4 md:p-6 bg-card w-full", className)}
     >
       {/* 헤더 - 월/년 표시 및 네비게이션 */}
       <div className="flex items-center justify-between mb-4">
@@ -206,7 +203,7 @@ function CustomCalendar({
           className="h-8 w-8 sm:h-10 sm:w-10 flex items-center justify-center rounded-md hover:bg-accent transition-colors"
           aria-label="이전 달"
         >
-          <ChevronLeft className="h-4 w-4 sm:h-5 sm:w-5" />
+          <ChevronLeft className="h-10 w-10 sm:h-5 sm:w-5" />
         </button>
         <div className="flex items-center gap-2">
           <h2 className="text-base text-lg  font-semibold">
@@ -214,7 +211,7 @@ function CustomCalendar({
           </h2>
           <button
             onClick={goToToday}
-            className="text-xs sm:text-sm px-2 sm:px-3 py-1 rounded-md hover:bg-accent transition-colors"
+            className="text-white px-2 sm:px-3 py-1 rounded-md hover:bg-accent transition-colors bg-amber-500"
           >
             오늘
           </button>
@@ -224,7 +221,7 @@ function CustomCalendar({
           className="h-8 w-8 sm:h-10 sm:w-10 flex items-center justify-center rounded-md hover:bg-accent transition-colors"
           aria-label="다음 달"
         >
-          <ChevronRight className="h-4 w-4 sm:h-5 sm:w-5" />
+          <ChevronRight className="h-10 w-10 sm:h-5 sm:w-5" />
         </button>
       </div>
 
@@ -234,7 +231,7 @@ function CustomCalendar({
           <div
             key={day}
             className={cn(
-              "text-center text-xs sm:text-sm font-medium py-2",
+              "text-center font-bold py-2",
               index === 0 && "text-red-500",
               index === 6 && "text-blue-500"
             )}
@@ -245,7 +242,7 @@ function CustomCalendar({
       </div>
 
       {/* 날짜 그리드 */}
-      <div className="grid grid-cols-7 gap-1 auto-rows-fr w-full">
+      <div className="grid grid-cols-7 gap-0.5 auto-rows-fr w-full">
         {/* 이전 달 날짜들 */}
         {prevMonthDays.map((day) => {
           const clickDate = new Date(
@@ -263,14 +260,14 @@ function CustomCalendar({
             <div
               key={`prev-${day}`}
               className={cn(
-                "min-h-[4rem] sm:min-h-[5rem] md:min-h-[6rem] lg:min-h-[7rem] xl:min-h-[8rem] flex flex-col rounded-md border border-border/50 overflow-hidden opacity-50",
+                "min-h-[4rem] sm:min-h-[5rem] md:min-h-[6rem] lg:min-h-[7rem] xl:min-h-[8rem]  flex flex-col rounded-md border border-border/50 overflow-hidden opacity-50",
                 isSelected && "border-primary border-2"
               )}
             >
               <button
                 onClick={() => handleDateClick(day, false, true)}
                 className={cn(
-                  "flex-shrink-0 h-8 w-full sm:h-10 md:h-12 flex items-center justify-center text-xs sm:text-sm md:text-base relative",
+                  "flex-shrink-0 h-8 w-full sm:h-10 md:h-12 font-bold flex items-center justify-center text-xs sm:text-sm md:text-base relative",
                   "text-muted-foreground hover:bg-accent/50 transition-colors",
                   isSelected && "bg-primary/20",
                   isHolidayDay && "text-red-500"
@@ -369,7 +366,7 @@ function CustomCalendar({
               <button
                 onClick={() => handleDateClick(day, true, false)}
                 className={cn(
-                  "flex-shrink-0 h-8 w-full sm:h-10 md:h-12 flex items-center justify-center text-lg relative transition-colors",
+                  "flex-shrink-0 h-8 w-full sm:h-10 md:h-12 flex font-bold items-center justify-center text-lg relative transition-colors",
                   "hover:bg-accent",
                   isToday && !isSelected && "bg-accent font-bold",
                   isSelected &&
