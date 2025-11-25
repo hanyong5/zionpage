@@ -1,13 +1,14 @@
 import React, { useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { useZion } from "../context/ZionContext";
+import { useYerim } from "../context/YerimContext";
+import supabase from "../../utils/supabase";
 
 const PARTS = ["SOPRANO", "ALTO", "TENOR", "BASS"];
 
-function ZionWrite() {
+function YerimWrite() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const { addMember } = useZion();
+  const { ministryCode, addMember } = useYerim();
 
   // URL 쿼리 파라미터에서 파트 가져오기
   const partFromUrl = searchParams.get("part");
@@ -22,16 +23,162 @@ function ZionWrite() {
     memo: "",
     join_date: "",
     position: "",
-    is_active: true,
   });
+  const [previewImage, setPreviewImage] = useState(null);
+  const [uploading, setUploading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState(null);
 
   const handleChange = (e) => {
-    const { name, value } = e.target;
+    const { name, value, type, checked } = e.target;
     setFormData((prev) => ({
       ...prev,
-      [name]: value,
+      [name]: type === "checkbox" ? checked : value,
+    }));
+  };
+
+  // 이미지를 정확히 200x200으로 리사이즈하는 함수
+  const resizeImage = (file, targetWidth = 200, targetHeight = 200) => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.readAsDataURL(file);
+      reader.onload = (event) => {
+        const img = new Image();
+        img.src = event.target.result;
+        img.onload = () => {
+          const canvas = document.createElement("canvas");
+          canvas.width = targetWidth;
+          canvas.height = targetHeight;
+          const ctx = canvas.getContext("2d");
+
+          ctx.imageSmoothingEnabled = true;
+          ctx.imageSmoothingQuality = "high";
+
+          const imgWidth = img.width;
+          const imgHeight = img.height;
+          const imgAspect = imgWidth / imgHeight;
+          const targetAspect = targetWidth / targetHeight;
+
+          let sourceX = 0;
+          let sourceY = 0;
+          let sourceWidth = imgWidth;
+          let sourceHeight = imgHeight;
+
+          if (imgAspect > targetAspect) {
+            sourceHeight = imgHeight;
+            sourceWidth = imgHeight * targetAspect;
+            sourceX = (imgWidth - sourceWidth) / 2;
+          } else {
+            sourceWidth = imgWidth;
+            sourceHeight = imgWidth / targetAspect;
+            sourceY = (imgHeight - sourceHeight) / 2;
+          }
+
+          ctx.fillStyle = "#FFFFFF";
+          ctx.fillRect(0, 0, targetWidth, targetHeight);
+
+          ctx.drawImage(
+            img,
+            sourceX,
+            sourceY,
+            sourceWidth,
+            sourceHeight,
+            0,
+            0,
+            targetWidth,
+            targetHeight
+          );
+
+          canvas.toBlob(
+            (blob) => {
+              if (blob) {
+                resolve(blob);
+              } else {
+                reject(new Error("이미지 리사이즈에 실패했습니다."));
+              }
+            },
+            "image/jpeg",
+            0.95
+          );
+        };
+        img.onerror = (error) => reject(error);
+      };
+      reader.onerror = (error) => reject(error);
+    });
+  };
+
+  // 이미지 파일 선택 핸들러
+  const handleImageChange = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    if (!file.type.startsWith("image/")) {
+      setError("이미지 파일만 업로드 가능합니다.");
+      return;
+    }
+
+    setUploading(true);
+    setError(null);
+
+    try {
+      const resizedBlob = await resizeImage(file, 200, 200);
+
+      const fileExt = file.name.split(".").pop() || "jpg";
+      const fileName = `${Date.now()}.${fileExt}`;
+      const filePath = `members/${fileName}`;
+
+      const resizedFile = new File([resizedBlob], fileName, {
+        type: file.type,
+        lastModified: Date.now(),
+      });
+
+      const { error: uploadError } = await supabase.storage
+        .from("photo")
+        .upload(filePath, resizedFile, {
+          cacheControl: "3600",
+          upsert: true,
+        });
+
+      if (uploadError) {
+        throw uploadError;
+      }
+
+      const {
+        data: { publicUrl },
+      } = supabase.storage.from("photo").getPublicUrl(filePath);
+
+      setPreviewImage(publicUrl);
+      setFormData((prev) => ({
+        ...prev,
+        photo: publicUrl,
+      }));
+    } catch (err) {
+      setError("이미지 업로드에 실패했습니다: " + err.message);
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  // 이미지 삭제 핸들러
+  const handleImageRemove = async () => {
+    const currentPhoto = formData.photo;
+
+    if (currentPhoto) {
+      try {
+        const urlParts = currentPhoto.split("/photo/");
+        if (urlParts.length > 1) {
+          const filePath = urlParts[1];
+          await supabase.storage.from("photo").remove([filePath]);
+        }
+      } catch (err) {
+        console.error("파일 삭제 중 오류:", err);
+      }
+    }
+
+    setPreviewImage(null);
+    setFormData((prev) => ({
+      ...prev,
+      photo: "",
     }));
   };
 
@@ -40,7 +187,6 @@ function ZionWrite() {
     setError(null);
     setSubmitting(true);
 
-    // 유효성 검사
     if (!formData.name.trim()) {
       setError("이름을 입력해주세요.");
       setSubmitting(false);
@@ -56,8 +202,7 @@ function ZionWrite() {
     try {
       const result = await addMember(formData);
       if (result.success) {
-        // 성공 시 리스트 페이지로 이동
-        navigate("/zion/list");
+        navigate(`/yerim?code=${ministryCode}`);
       } else {
         setError(result.error || "멤버 추가에 실패했습니다.");
       }
@@ -70,7 +215,9 @@ function ZionWrite() {
 
   return (
     <div className="p-6 max-w-2xl mx-auto">
-      <h2 className="text-3xl font-bold mb-6">멤버 추가하기</h2>
+      <h2 className="text-3xl font-bold mb-6">
+        {ministryCode} - 멤버 추가하기
+      </h2>
 
       <form onSubmit={handleSubmit} className="space-y-6">
         {/* 이름 입력 */}
@@ -119,6 +266,49 @@ function ZionWrite() {
             onChange={handleChange}
             className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
           />
+        </div>
+
+        {/* 사진 첨부 */}
+        <div>
+          <label className="block text-sm font-medium mb-2">사진</label>
+          <div className="flex flex-col gap-4">
+            {previewImage && (
+              <div className="relative inline-block">
+                <img
+                  src={previewImage}
+                  alt="프로필 미리보기"
+                  className="w-[200px] h-[200px] object-cover border rounded-lg"
+                />
+                <button
+                  type="button"
+                  onClick={handleImageRemove}
+                  className="absolute top-2 right-2 bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs hover:bg-red-600"
+                >
+                  ×
+                </button>
+              </div>
+            )}
+
+            <div>
+              <input
+                type="file"
+                id="photo"
+                name="photo"
+                accept="image/*"
+                onChange={handleImageChange}
+                disabled={uploading}
+                className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary disabled:opacity-50"
+              />
+              {uploading && (
+                <p className="text-sm text-muted-foreground mt-1">
+                  업로드 중...
+                </p>
+              )}
+              <p className="text-xs text-muted-foreground mt-1">
+                이미지 크기: 200x200px, 최대 5MB
+              </p>
+            </div>
+          </div>
         </div>
 
         {/* 가입일 입력 */}
@@ -215,7 +405,7 @@ function ZionWrite() {
           </button>
           <button
             type="button"
-            onClick={() => navigate("/zion/list")}
+            onClick={() => navigate(`/yerim?code=${ministryCode}`)}
             className="px-6 py-3 border rounded-lg font-medium hover:bg-accent transition-colors"
           >
             취소
@@ -226,4 +416,4 @@ function ZionWrite() {
   );
 }
 
-export default ZionWrite;
+export default YerimWrite;

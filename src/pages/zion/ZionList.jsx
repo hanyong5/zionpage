@@ -64,9 +64,14 @@ function ZionList() {
                           </div>
                         )}
                       </div>
-                      <div className="font-medium text-sm mb-2">
+                      <div className="font-medium text-sm mb-1">
                         {member.name || "이름 없음"}
                       </div>
+                      {member.position && (
+                        <div className="text-xs text-muted-foreground mb-1">
+                          {member.position}
+                        </div>
+                      )}
                       <Link
                         to={`/zion/modify/${member.id}`}
                         className="text-xs text-primary hover:text-primary/80 hover:underline transition-colors"

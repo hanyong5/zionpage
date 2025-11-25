@@ -1,14 +1,14 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { useZion } from "../context/ZionContext";
+import { useYerim } from "../context/YerimContext";
 import supabase from "../../utils/supabase";
 
 const PARTS = ["SOPRANO", "ALTO", "TENOR", "BASS"];
 
-function ZionModi() {
+function YerimModi() {
   const navigate = useNavigate();
   const { id } = useParams();
-  const { updateMember, getMemberById, loading: contextLoading } = useZion();
+  const { updateMember, getMemberById, loading: contextLoading, ministryCode } = useYerim();
 
   const [formData, setFormData] = useState({
     name: "",
@@ -26,7 +26,7 @@ function ZionModi() {
   const [submitting, setSubmitting] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [originalPhoto, setOriginalPhoto] = useState(null); // 원본 사진 URL 저장
+  const [originalPhoto, setOriginalPhoto] = useState(null);
 
   // 멤버 데이터 로드
   useEffect(() => {
@@ -37,7 +37,7 @@ function ZionModi() {
           name: member.name || "",
           phone: member.phone || "",
           birth: member.birth || "",
-          part: member.part || "SOPRANO",
+          part: member.membershipPart || member.part || "SOPRANO",
           memo: member.memo || "",
           join_date: member.join_date || "",
           position: member.position || "",
@@ -46,17 +46,15 @@ function ZionModi() {
         });
         if (member.photo) {
           setPreviewImage(member.photo);
-          setOriginalPhoto(member.photo); // 원본 사진 URL 저장
+          setOriginalPhoto(member.photo);
         }
         setLoading(false);
       } else if (!contextLoading) {
-        // 멤버를 찾을 수 없을 때
         setError("멤버를 찾을 수 없습니다.");
         setLoading(false);
       }
     };
 
-    // Context가 로딩 중이면 잠시 대기
     if (contextLoading) {
       const timer = setTimeout(loadMember, 100);
       return () => clearTimeout(timer);
@@ -73,7 +71,6 @@ function ZionModi() {
     }));
   };
 
-  // 이미지를 정확히 200x200으로 리사이즈하는 함수 (중앙 크롭)
   const resizeImage = (file, targetWidth = 200, targetHeight = 200) => {
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
@@ -87,11 +84,9 @@ function ZionModi() {
           canvas.height = targetHeight;
           const ctx = canvas.getContext("2d");
 
-          // 이미지 품질 향상을 위한 설정
           ctx.imageSmoothingEnabled = true;
           ctx.imageSmoothingQuality = "high";
 
-          // 원본 이미지의 비율 계산
           const imgWidth = img.width;
           const imgHeight = img.height;
           const imgAspect = imgWidth / imgHeight;
@@ -102,24 +97,19 @@ function ZionModi() {
           let sourceWidth = imgWidth;
           let sourceHeight = imgHeight;
 
-          // 중앙 크롭 계산
           if (imgAspect > targetAspect) {
-            // 이미지가 더 넓은 경우: 높이 기준으로 크롭
             sourceHeight = imgHeight;
             sourceWidth = imgHeight * targetAspect;
             sourceX = (imgWidth - sourceWidth) / 2;
           } else {
-            // 이미지가 더 높은 경우: 너비 기준으로 크롭
             sourceWidth = imgWidth;
             sourceHeight = imgWidth / targetAspect;
             sourceY = (imgHeight - sourceHeight) / 2;
           }
 
-          // 배경을 흰색으로 채우기
           ctx.fillStyle = "#FFFFFF";
           ctx.fillRect(0, 0, targetWidth, targetHeight);
 
-          // 이미지를 정확히 200x200으로 리사이즈하여 그리기
           ctx.drawImage(
             img,
             sourceX,
@@ -132,7 +122,6 @@ function ZionModi() {
             targetHeight
           );
 
-          // JPEG로 변환 (품질 0.95)
           canvas.toBlob(
             (blob) => {
               if (blob) {
@@ -151,12 +140,10 @@ function ZionModi() {
     });
   };
 
-  // 이미지 파일 선택 핸들러
   const handleImageChange = async (e) => {
     const file = e.target.files[0];
     if (!file) return;
 
-    // 이미지 파일인지 확인
     if (!file.type.startsWith("image/")) {
       setError("이미지 파일만 업로드 가능합니다.");
       return;
@@ -166,7 +153,6 @@ function ZionModi() {
     setError(null);
 
     try {
-      // 기존 사진이 있고 새 사진을 업로드하는 경우, 기존 파일 삭제
       if (originalPhoto && originalPhoto !== formData.photo) {
         try {
           const urlParts = originalPhoto.split("/photo/");
@@ -176,25 +162,20 @@ function ZionModi() {
           }
         } catch (err) {
           console.error("기존 파일 삭제 오류:", err);
-          // 삭제 실패해도 계속 진행
         }
       }
 
-      // 이미지를 200x200으로 리사이즈
       const resizedBlob = await resizeImage(file, 200, 200);
 
-      // 파일명 생성 (고유한 이름)
       const fileExt = file.name.split(".").pop() || "jpg";
       const fileName = `${id}_${Date.now()}.${fileExt}`;
       const filePath = `members/${fileName}`;
 
-      // 리사이즈된 이미지를 File 객체로 변환
       const resizedFile = new File([resizedBlob], fileName, {
         type: file.type,
         lastModified: Date.now(),
       });
 
-      // Supabase Storage에 업로드
       const { error: uploadError } = await supabase.storage
         .from("photo")
         .upload(filePath, resizedFile, {
@@ -206,12 +187,10 @@ function ZionModi() {
         throw uploadError;
       }
 
-      // 공개 URL 가져오기
       const {
         data: { publicUrl },
       } = supabase.storage.from("photo").getPublicUrl(filePath);
 
-      // 미리보기 설정
       setPreviewImage(publicUrl);
       setFormData((prev) => ({
         ...prev,
@@ -224,36 +203,27 @@ function ZionModi() {
     }
   };
 
-  // 이미지 삭제 핸들러
   const handleImageRemove = async () => {
     const currentPhoto = formData.photo;
 
-    // Storage에서 파일 삭제
     if (currentPhoto) {
       try {
-        // URL에서 파일 경로 추출
-        // URL 형식: https://...supabase.co/storage/v1/object/public/photo/members/filename.jpg
         const urlParts = currentPhoto.split("/photo/");
         if (urlParts.length > 1) {
           const filePath = urlParts[1];
-
-          // Supabase Storage에서 파일 삭제
           const { error: deleteError } = await supabase.storage
             .from("photo")
             .remove([filePath]);
 
           if (deleteError) {
             console.error("파일 삭제 오류:", deleteError);
-            // 삭제 실패해도 로컬 상태는 업데이트
           }
         }
       } catch (err) {
         console.error("파일 삭제 중 오류:", err);
-        // 삭제 실패해도 로컬 상태는 업데이트
       }
     }
 
-    // 로컬 상태 업데이트
     setPreviewImage(null);
     setFormData((prev) => ({
       ...prev,
@@ -266,7 +236,6 @@ function ZionModi() {
     setError(null);
     setSubmitting(true);
 
-    // 유효성 검사
     if (!formData.name.trim()) {
       setError("이름을 입력해주세요.");
       setSubmitting(false);
@@ -282,8 +251,7 @@ function ZionModi() {
     try {
       const result = await updateMember(id, formData);
       if (result.success) {
-        // 성공 시 리스트 페이지로 이동
-        navigate("/zion/list");
+        navigate(`/yerim?code=${ministryCode}`);
       } else {
         setError(result.error || "멤버 수정에 실패했습니다.");
       }
@@ -305,7 +273,7 @@ function ZionModi() {
           {error}
         </div>
         <button
-          onClick={() => navigate("/zion/list")}
+          onClick={() => navigate(`/yerim?code=${ministryCode}`)}
           className="mt-4 px-6 py-3 border rounded-lg font-medium hover:bg-accent transition-colors"
         >
           목록으로 돌아가기
@@ -316,7 +284,9 @@ function ZionModi() {
 
   return (
     <div className="p-6 max-w-2xl mx-auto">
-      <h2 className="text-3xl font-bold mb-6">멤버 수정하기</h2>
+      <h2 className="text-3xl font-bold mb-6">
+        {ministryCode} - 멤버 수정하기
+      </h2>
 
       <form onSubmit={handleSubmit} className="space-y-6">
         {/* 이름 입력 */}
@@ -371,7 +341,6 @@ function ZionModi() {
         <div>
           <label className="block text-sm font-medium mb-2">사진</label>
           <div className="flex flex-col gap-4">
-            {/* 이미지 미리보기 */}
             {previewImage && (
               <div className="relative inline-block">
                 <img
@@ -389,7 +358,6 @@ function ZionModi() {
               </div>
             )}
 
-            {/* 파일 선택 */}
             <div>
               <input
                 type="file"
@@ -523,7 +491,7 @@ function ZionModi() {
           </button>
           <button
             type="button"
-            onClick={() => navigate("/zion/list")}
+            onClick={() => navigate(`/yerim?code=${ministryCode}`)}
             className="px-6 py-3 border rounded-lg font-medium hover:bg-accent transition-colors"
           >
             취소
@@ -534,4 +502,4 @@ function ZionModi() {
   );
 }
 
-export default ZionModi;
+export default YerimModi;
