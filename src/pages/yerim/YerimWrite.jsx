@@ -1,29 +1,71 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useYerim } from "../context/YerimContext";
 import supabase from "../../utils/supabase";
 
 const PARTS = ["SOPRANO", "ALTO", "TENOR", "BASS"];
+const POSITIONS = [
+  "중학생",
+  "고등학생",
+  "대학생",
+  "청년",
+  "집사",
+  "시무집사",
+  "권사",
+];
 
 function YerimWrite() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const { ministryCode, addMember } = useYerim();
+  const { ministryCode: contextMinistryCode, addMember } = useYerim();
+
+  const [ministryCodes, setMinistryCodes] = useState([]);
 
   // URL 쿼리 파라미터에서 파트 가져오기
   const partFromUrl = searchParams.get("part");
   const initialPart =
     partFromUrl && PARTS.includes(partFromUrl) ? partFromUrl : "SOPRANO";
 
+  // 현재 년도로 초기화
+  const currentYear = new Date().getFullYear();
+
   const [formData, setFormData] = useState({
     name: "",
     phone: "",
     birth: "",
+    grade: "",
     part: initialPart,
     memo: "",
     join_date: "",
+    ministryCode: contextMinistryCode || "",
     position: "",
+    year: currentYear, // 현재 년도로 자동 설정
   });
+
+  // ministry 테이블에서 소속 목록 가져오기
+  useEffect(() => {
+    const fetchMinistries = async () => {
+      try {
+        const { data, error } = await supabase
+          .from("ministry")
+          .select("name")
+          .order("name");
+
+        if (error) {
+          console.error("소속 목록 가져오기 오류:", error);
+          return;
+        }
+
+        if (data) {
+          setMinistryCodes(data.map((item) => item.name));
+        }
+      } catch (err) {
+        console.error("소속 목록 가져오기 중 오류:", err);
+      }
+    };
+
+    fetchMinistries();
+  }, []);
   const [previewImage, setPreviewImage] = useState(null);
   const [uploading, setUploading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -199,10 +241,16 @@ function YerimWrite() {
       return;
     }
 
+    if (!formData.ministryCode) {
+      setError("소속을 선택해주세요.");
+      setSubmitting(false);
+      return;
+    }
+
     try {
       const result = await addMember(formData);
       if (result.success) {
-        navigate(`/yerim?code=${ministryCode}`);
+        navigate(`/yerim?code=${contextMinistryCode || ""}`);
       } else {
         setError(result.error || "멤버 추가에 실패했습니다.");
       }
@@ -216,7 +264,7 @@ function YerimWrite() {
   return (
     <div className="p-6 max-w-2xl mx-auto">
       <h2 className="text-3xl font-bold mb-6">
-        {ministryCode} - 멤버 추가하기
+        {contextMinistryCode || ""} - 멤버 추가하기
       </h2>
 
       <form onSubmit={handleSubmit} className="space-y-6">
@@ -265,6 +313,24 @@ function YerimWrite() {
             value={formData.birth}
             onChange={handleChange}
             className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
+          />
+        </div>
+
+        {/* 학년 입력 */}
+        <div>
+          <label htmlFor="grade" className="block text-sm font-medium mb-2">
+            학년
+          </label>
+          <input
+            type="number"
+            id="grade"
+            name="grade"
+            value={formData.grade}
+            onChange={handleChange}
+            min="1"
+            max="6"
+            className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
+            placeholder="학년을 입력하세요 (선택사항)"
           />
         </div>
 
@@ -326,20 +392,50 @@ function YerimWrite() {
           />
         </div>
 
-        {/* 직책 입력 */}
+        {/* 소속 선택 */}
+        <div>
+          <label
+            htmlFor="ministryCode"
+            className="block text-sm font-medium mb-2"
+          >
+            소속 <span className="text-red-500">*</span>
+          </label>
+          <select
+            id="ministryCode"
+            name="ministryCode"
+            value={formData.ministryCode}
+            onChange={handleChange}
+            required
+            className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
+          >
+            <option value="">소속 선택</option>
+            {ministryCodes.map((code) => (
+              <option key={code} value={code}>
+                {code}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        {/* 직분 선택 */}
         <div>
           <label htmlFor="position" className="block text-sm font-medium mb-2">
-            직책
+            직분
           </label>
-          <input
-            type="text"
+          <select
             id="position"
             name="position"
             value={formData.position}
             onChange={handleChange}
             className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
-            placeholder="직책을 입력하세요 (선택사항)"
-          />
+          >
+            <option value="">직분 선택 (선택사항)</option>
+            {POSITIONS.map((position) => (
+              <option key={position} value={position}>
+                {position}
+              </option>
+            ))}
+          </select>
         </div>
 
         {/* 파트 선택 (라디오 버튼) */}
@@ -405,7 +501,7 @@ function YerimWrite() {
           </button>
           <button
             type="button"
-            onClick={() => navigate(`/yerim?code=${ministryCode}`)}
+            onClick={() => navigate(`/yerim?code=${contextMinistryCode || ""}`)}
             className="px-6 py-3 border rounded-lg font-medium hover:bg-accent transition-colors"
           >
             취소

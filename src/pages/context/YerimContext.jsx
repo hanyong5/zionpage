@@ -17,9 +17,7 @@ export const YerimProvider = ({ children }) => {
 
   useEffect(() => {
     const code = searchParams.get("code");
-    if (code) {
-      setMinistryCode(code);
-    }
+    setMinistryCode(code || "");
   }, [searchParams]);
 
   const fetchMembers = async () => {
@@ -45,11 +43,18 @@ export const YerimProvider = ({ children }) => {
           return;
         }
 
-        // membership 테이블에서 해당 ministry에 속한 member_id, part, is_active 가져오기
+        // 현재 년도와 다음 년도만 가져오기
+        const currentYear = new Date().getFullYear();
+        const nextYear = currentYear + 1;
+
+        // membership 테이블에서 해당 ministry에 속한 id, member_id, part, is_active, grade, year, position 가져오기
+        // 현재 년도와 다음 년도만 필터링
         const { data: membershipData, error: membershipError } = await supabase
           .from("membership")
-          .select("member_id, part, is_active")
-          .eq("ministry_id", ministryData.id);
+          .select("id, member_id, part, is_active, grade, year, position")
+          .eq("ministry_id", ministryData.id)
+          .in("year", [currentYear, nextYear])
+          .order("year", { ascending: false });
 
         if (membershipError) {
           throw membershipError;
@@ -74,28 +79,117 @@ export const YerimProvider = ({ children }) => {
           throw error;
         }
 
-        // members 데이터에 membership의 part와 is_active 정보 병합
+        // ministry 정보 가져오기
+        const { data: ministryInfo, error: ministryInfoError } = await supabase
+          .from("ministry")
+          .select("id, name")
+          .eq("id", ministryData.id)
+          .single();
+
+        // members 데이터에 membership의 part, is_active, grade, year 정보 병합
+        // 각 멤버의 모든 년도 membership 정보를 포함
         const membersWithPart = (data || []).map((member) => {
-          const membership = membershipData.find(
+          const memberships = membershipData.filter(
             (m) => m.member_id === member.id
           );
+
+          // 모든 년도의 membership 정보를 배열로 저장
+          const allYearMemberships = memberships.map((m) => ({
+            ...m,
+            ministry: ministryInfo,
+          }));
+
+          // 첫 번째 membership 정보 사용 (기본값, 가장 최근 년도)
+          const firstMembership = memberships[0];
           return {
             ...member,
-            membershipPart: membership?.part || null, // membership의 part
-            is_active: membership?.is_active !== false, // membership의 is_active
+            membershipPart: firstMembership?.part || null, // membership의 part
+            is_active: firstMembership?.is_active !== false, // membership의 is_active
+            grade: firstMembership?.grade || null, // membership의 grade
+            year: firstMembership?.year || null, // membership의 year
+            membershipId: firstMembership?.id || null, // membership의 id
+            position: firstMembership?.position || null, // membership의 position
+            ministryName: ministryInfo?.name || null,
+            // 모든 년도의 membership 정보 저장
+            allMemberships: allYearMemberships,
           };
         });
 
         setMembers(membersWithPart);
       } else {
         // code가 없으면 모든 멤버 가져오기
-        const { data, error } = await supabase.from("members").select("*");
+        const { data: allMembers, error: membersError } = await supabase
+          .from("members")
+          .select("*");
 
-        if (error) {
-          throw error;
+        if (membersError) {
+          throw membersError;
         }
 
-        setMembers(data || []);
+        // 현재 년도와 다음 년도만 가져오기
+        const currentYear = new Date().getFullYear();
+        const nextYear = currentYear + 1;
+
+        // 현재 년도와 다음 년도의 membership 데이터만 가져오기
+        // (필요시 모든 년도로 확장 가능)
+        const { data: allMembershipData, error: membershipError } =
+          await supabase
+            .from("membership")
+            .select(
+              "id, member_id, part, is_active, grade, year, position, ministry_id"
+            )
+            .in("year", [currentYear, nextYear])
+            .order("year", { ascending: false });
+
+        if (membershipError) {
+          throw membershipError;
+        }
+
+        // ministry 정보 가져오기
+        const { data: allMinistryData, error: ministryError } = await supabase
+          .from("ministry")
+          .select("id, name");
+
+        if (ministryError) {
+          throw ministryError;
+        }
+
+        // members 데이터에 membership 정보 병합
+        // 각 멤버의 모든 년도 membership 정보를 포함
+        const membersWithMembership = (allMembers || []).map((member) => {
+          const memberships = (allMembershipData || []).filter(
+            (m) => m.member_id === member.id
+          );
+
+          // 모든 년도의 membership 정보를 배열로 저장
+          const allYearMemberships = memberships.map((m) => ({
+            ...m,
+            ministry: allMinistryData?.find((min) => min.id === m.ministry_id),
+          }));
+
+          // 첫 번째 membership 정보 사용 (기본값, 가장 최근 년도)
+          const firstMembership = memberships[0];
+          const ministry = firstMembership
+            ? allMinistryData?.find((m) => m.id === firstMembership.ministry_id)
+            : null;
+
+          return {
+            ...member,
+            membershipPart: firstMembership?.part || null,
+            is_active: firstMembership
+              ? firstMembership.is_active !== false
+              : true, // membership이 없으면 true로 설정
+            grade: firstMembership?.grade || null,
+            year: firstMembership?.year || null,
+            membershipId: firstMembership?.id || null, // membership의 id
+            position: firstMembership?.position || null, // membership의 position
+            ministryName: ministry?.name || null,
+            // 모든 년도의 membership 정보 저장
+            allMemberships: allYearMemberships,
+          };
+        });
+
+        setMembers(membersWithMembership);
       }
     } catch (err) {
       setError(err.message);
@@ -106,17 +200,23 @@ export const YerimProvider = ({ children }) => {
   };
 
   useEffect(() => {
-    if (ministryCode) {
-      fetchMembers();
-    }
+    fetchMembers();
   }, [ministryCode]);
 
   const addMember = async (memberData) => {
     try {
-      // part와 is_active는 membership 테이블에만 저장
-      const { part, is_active, ...memberFields } = memberData;
+      // part, is_active, ministryCode, grade, year, position은 membership 테이블에만 저장
+      const {
+        part,
+        is_active,
+        ministryCode,
+        grade,
+        year,
+        position,
+        ...memberFields
+      } = memberData;
 
-      // 1. members 테이블에 멤버 추가 (part 제외)
+      // 1. members 테이블에 멤버 추가 (part, is_active, ministryCode, grade, year 제외)
       const { data: newMember, error: memberError } = await supabase
         .from("members")
         .insert([memberFields])
@@ -127,7 +227,10 @@ export const YerimProvider = ({ children }) => {
         throw memberError;
       }
 
-      // 2. ministry 정보 가져오기
+      // 2. ministry 정보 가져오기 (formData의 ministryCode 사용)
+      if (!ministryCode) {
+        throw new Error("소속을 선택해주세요.");
+      }
       const { data: ministryData, error: ministryError } = await supabase
         .from("ministry")
         .select("id")
@@ -138,7 +241,9 @@ export const YerimProvider = ({ children }) => {
         throw ministryError;
       }
 
-      // 3. membership 테이블에 관계 추가 (part 포함)
+      // 3. membership 테이블에 관계 추가 (part, grade, year, position 포함)
+      // year는 formData에서 가져오거나 현재 년도로 자동 설정
+      const yearToUse = year || new Date().getFullYear();
       const { error: membershipError } = await supabase
         .from("membership")
         .insert([
@@ -146,6 +251,9 @@ export const YerimProvider = ({ children }) => {
             member_id: newMember.id,
             ministry_id: ministryData.id,
             part: part,
+            grade: grade || null,
+            year: yearToUse,
+            position: position || null,
             is_active: true,
           },
         ]);
@@ -164,10 +272,22 @@ export const YerimProvider = ({ children }) => {
 
   const updateMember = async (id, memberData) => {
     try {
-      // 1. members 테이블 업데이트
+      // part, is_active, ministryCode, grade, year, position, membershipId는 membership 테이블에만 저장
+      const {
+        part,
+        is_active,
+        ministryCode,
+        grade,
+        year,
+        position,
+        membershipId,
+        ...memberFields
+      } = memberData;
+
+      // 1. members 테이블 업데이트 (part, is_active, ministryCode, grade, year, membershipId 제외)
       const { data: updatedMember, error: memberError } = await supabase
         .from("members")
-        .update(memberData)
+        .update(memberFields)
         .eq("id", id)
         .select()
         .single();
@@ -177,6 +297,9 @@ export const YerimProvider = ({ children }) => {
       }
 
       // 2. ministry 정보 가져오기
+      if (!ministryCode) {
+        throw new Error("소속을 선택해주세요.");
+      }
       const { data: ministryData, error: ministryError } = await supabase
         .from("ministry")
         .select("id")
@@ -187,18 +310,144 @@ export const YerimProvider = ({ children }) => {
         throw ministryError;
       }
 
-      // 3. membership 테이블의 part와 is_active 업데이트
-      const { error: membershipError } = await supabase
-        .from("membership")
-        .update({
-          part: memberData.part,
-          is_active: memberData.is_active
-        })
-        .eq("member_id", id)
-        .eq("ministry_id", ministryData.id);
+      // 3. membershipId가 있으면 기존 membership의 ministry_id 확인
+      if (membershipId) {
+        // 기존 membership 정보 가져오기
+        const { data: existingMembership, error: existingError } =
+          await supabase
+            .from("membership")
+            .select("ministry_id")
+            .eq("id", membershipId)
+            .single();
 
-      if (membershipError) {
-        throw membershipError;
+        if (existingError) {
+          throw existingError;
+        }
+
+        // 소속이 변경되었는지 확인
+        if (existingMembership.ministry_id !== ministryData.id) {
+          // 소속이 변경되었으면 새로운 ministry의 membership을 찾거나 생성
+          const yearToUse = year || new Date().getFullYear();
+
+          // 새로운 ministry의 해당 년도 membership이 있는지 확인
+          const { data: newMembership, error: checkError } = await supabase
+            .from("membership")
+            .select("id")
+            .eq("member_id", id)
+            .eq("ministry_id", ministryData.id)
+            .eq("year", yearToUse)
+            .maybeSingle();
+
+          if (checkError) {
+            throw checkError;
+          }
+
+          if (newMembership) {
+            // 기존 membership이 있으면 업데이트
+            const { error: membershipError } = await supabase
+              .from("membership")
+              .update({
+                part: part,
+                is_active: is_active,
+                grade: grade || null,
+                year: yearToUse,
+                position: position || null,
+              })
+              .eq("id", newMembership.id);
+
+            if (membershipError) {
+              throw membershipError;
+            }
+          } else {
+            // 새로운 membership 생성
+            const { error: membershipError } = await supabase
+              .from("membership")
+              .insert([
+                {
+                  member_id: id,
+                  ministry_id: ministryData.id,
+                  part: part,
+                  grade: grade || null,
+                  year: yearToUse,
+                  position: position || null,
+                  is_active: is_active !== false,
+                },
+              ]);
+
+            if (membershipError) {
+              throw membershipError;
+            }
+          }
+        } else {
+          // 소속이 변경되지 않았으면 기존 membership 업데이트
+          const { error: membershipError } = await supabase
+            .from("membership")
+            .update({
+              part: part,
+              is_active: is_active,
+              grade: grade || null,
+              year: year || null,
+              position: position || null,
+            })
+            .eq("id", membershipId);
+
+          if (membershipError) {
+            throw membershipError;
+          }
+        }
+      } else {
+        // membershipId가 없으면 기존 방식 사용 (하위 호환성)
+        const yearToUse = year || new Date().getFullYear();
+
+        // 해당 ministry의 해당 년도 membership이 있는지 확인
+        const { data: existingMembership, error: checkError } = await supabase
+          .from("membership")
+          .select("id")
+          .eq("member_id", id)
+          .eq("ministry_id", ministryData.id)
+          .eq("year", yearToUse)
+          .maybeSingle();
+
+        if (checkError) {
+          throw checkError;
+        }
+
+        if (existingMembership) {
+          // 기존 membership이 있으면 업데이트
+          const { error: membershipError } = await supabase
+            .from("membership")
+            .update({
+              part: part,
+              is_active: is_active,
+              grade: grade || null,
+              year: yearToUse,
+              position: position || null,
+            })
+            .eq("id", existingMembership.id);
+
+          if (membershipError) {
+            throw membershipError;
+          }
+        } else {
+          // 새로운 membership 생성
+          const { error: membershipError } = await supabase
+            .from("membership")
+            .insert([
+              {
+                member_id: id,
+                ministry_id: ministryData.id,
+                part: part,
+                grade: grade || null,
+                year: yearToUse,
+                position: position || null,
+                is_active: is_active !== false,
+              },
+            ]);
+
+          if (membershipError) {
+            throw membershipError;
+          }
+        }
       }
 
       // 멤버 리스트 새로고침

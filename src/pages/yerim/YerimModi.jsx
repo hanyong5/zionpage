@@ -1,26 +1,71 @@
 import React, { useState, useEffect } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { useYerim } from "../context/YerimContext";
 import supabase from "../../utils/supabase";
 
 const PARTS = ["SOPRANO", "ALTO", "TENOR", "BASS"];
+const POSITIONS = [
+  "중학생",
+  "고등학생",
+  "대학생",
+  "청년",
+  "집사",
+  "시무집사",
+  "권사",
+];
 
 function YerimModi() {
   const navigate = useNavigate();
   const { id } = useParams();
-  const { updateMember, getMemberById, loading: contextLoading, ministryCode } = useYerim();
+  const [searchParams] = useSearchParams();
+  const {
+    updateMember,
+    getMemberById,
+    loading: contextLoading,
+    ministryCode: contextMinistryCode,
+  } = useYerim();
+
+  const [ministryCodes, setMinistryCodes] = useState([]);
 
   const [formData, setFormData] = useState({
     name: "",
     phone: "",
     birth: "",
+    grade: "",
     part: "SOPRANO",
     memo: "",
     join_date: "",
+    ministryCode: "",
     position: "",
     is_active: true,
     photo: "",
+    year: new Date().getFullYear(), // 기본값은 현재 년도
   });
+
+  // ministry 테이블에서 소속 목록 가져오기
+  useEffect(() => {
+    const fetchMinistries = async () => {
+      try {
+        const { data, error } = await supabase
+          .from("ministry")
+          .select("name")
+          .order("name");
+
+        if (error) {
+          console.error("소속 목록 가져오기 오류:", error);
+          return;
+        }
+
+        if (data) {
+          setMinistryCodes(data.map((item) => item.name));
+        }
+      } catch (err) {
+        console.error("소속 목록 가져오기 중 오류:", err);
+      }
+    };
+
+    fetchMinistries();
+  }, []);
   const [previewImage, setPreviewImage] = useState(null);
   const [uploading, setUploading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -33,16 +78,51 @@ function YerimModi() {
     const loadMember = () => {
       const member = getMemberById(id);
       if (member) {
+        const currentYear = new Date().getFullYear();
+        // URL 파라미터에서 year를 가져오거나, member.year 또는 현재 년도 사용
+        const urlYear = searchParams.get("year");
+        const initialYear = urlYear
+          ? parseInt(urlYear)
+          : member.year || currentYear;
+
+        // 선택된 년도의 membership 정보 찾기
+        let selectedMembership = null;
+        if (member.allMemberships && member.allMemberships.length > 0) {
+          selectedMembership = member.allMemberships.find(
+            (m) => m.year === initialYear
+          );
+        }
+
+        // 선택된 년도의 membership이 없으면 첫 번째 membership 사용
+        if (
+          !selectedMembership &&
+          member.allMemberships &&
+          member.allMemberships.length > 0
+        ) {
+          selectedMembership = member.allMemberships[0];
+        }
+
         setFormData({
           name: member.name || "",
           phone: member.phone || "",
           birth: member.birth || "",
-          part: member.membershipPart || member.part || "SOPRANO",
+          grade: selectedMembership?.grade || member.grade || "",
+          part:
+            selectedMembership?.part ||
+            member.membershipPart ||
+            member.part ||
+            "SOPRANO",
           memo: member.memo || "",
           join_date: member.join_date || "",
-          position: member.position || "",
-          is_active: member.is_active !== false,
+          ministryCode: contextMinistryCode || "",
+          position: selectedMembership?.position || member.position || "",
+          is_active:
+            selectedMembership?.is_active !== false
+              ? selectedMembership.is_active
+              : member.is_active !== false,
           photo: member.photo || "",
+          year: initialYear, // 기존 년도 값 가져오기
+          membershipId: selectedMembership?.id || member.membershipId || null, // 선택된 년도의 membership id 가져오기
         });
         if (member.photo) {
           setPreviewImage(member.photo);
@@ -61,14 +141,47 @@ function YerimModi() {
     } else {
       loadMember();
     }
-  }, [id, getMemberById, contextLoading]);
+  }, [id, getMemberById, contextLoading, searchParams]);
 
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target;
-    setFormData((prev) => ({
-      ...prev,
-      [name]: type === "checkbox" ? checked : value,
-    }));
+    setFormData((prev) => {
+      const newData = {
+        ...prev,
+        [name]: type === "checkbox" ? checked : value,
+      };
+
+      // 년도가 변경되면 해당 년도의 membership 정보로 업데이트
+      if (name === "year" && value) {
+        const member = getMemberById(id);
+        if (
+          member &&
+          member.allMemberships &&
+          member.allMemberships.length > 0
+        ) {
+          const selectedMembership = member.allMemberships.find(
+            (m) => m.year === parseInt(value)
+          );
+
+          if (selectedMembership) {
+            newData.grade = selectedMembership.grade || "";
+            newData.part = selectedMembership.part || prev.part || "SOPRANO";
+            newData.position = selectedMembership.position || "";
+            newData.is_active = selectedMembership.is_active !== false;
+            newData.membershipId = selectedMembership.id || null;
+          } else {
+            // 해당 년도의 membership이 없으면 기본값 사용
+            newData.grade = "";
+            newData.part = prev.part || "SOPRANO";
+            newData.position = "";
+            newData.is_active = true;
+            newData.membershipId = null;
+          }
+        }
+      }
+
+      return newData;
+    });
   };
 
   const resizeImage = (file, targetWidth = 200, targetHeight = 200) => {
@@ -248,10 +361,16 @@ function YerimModi() {
       return;
     }
 
+    if (!formData.ministryCode) {
+      setError("소속을 선택해주세요.");
+      setSubmitting(false);
+      return;
+    }
+
     try {
       const result = await updateMember(id, formData);
       if (result.success) {
-        navigate(`/yerim?code=${ministryCode}`);
+        navigate(`/yerim?code=${contextMinistryCode || ""}`);
       } else {
         setError(result.error || "멤버 수정에 실패했습니다.");
       }
@@ -273,7 +392,7 @@ function YerimModi() {
           {error}
         </div>
         <button
-          onClick={() => navigate(`/yerim?code=${ministryCode}`)}
+          onClick={() => navigate(`/yerim?code=${contextMinistryCode || ""}`)}
           className="mt-4 px-6 py-3 border rounded-lg font-medium hover:bg-accent transition-colors"
         >
           목록으로 돌아가기
@@ -285,7 +404,7 @@ function YerimModi() {
   return (
     <div className="p-6 max-w-2xl mx-auto">
       <h2 className="text-3xl font-bold mb-6">
-        {ministryCode} - 멤버 수정하기
+        {contextMinistryCode || ""} - 멤버 수정하기
       </h2>
 
       <form onSubmit={handleSubmit} className="space-y-6">
@@ -334,6 +453,42 @@ function YerimModi() {
             value={formData.birth}
             onChange={handleChange}
             className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
+          />
+        </div>
+
+        {/* 학년 입력 */}
+        <div>
+          <label htmlFor="grade" className="block text-sm font-medium mb-2">
+            학년
+          </label>
+          <input
+            type="number"
+            id="grade"
+            name="grade"
+            value={formData.grade}
+            onChange={handleChange}
+            min="1"
+            max="6"
+            className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
+            placeholder="학년을 입력하세요 (선택사항)"
+          />
+        </div>
+
+        {/* 년도 입력 */}
+        <div>
+          <label htmlFor="year" className="block text-sm font-medium mb-2">
+            년도
+          </label>
+          <input
+            type="number"
+            id="year"
+            name="year"
+            value={formData.year}
+            onChange={handleChange}
+            min="2000"
+            max="2100"
+            className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
+            placeholder="년도를 입력하세요"
           />
         </div>
 
@@ -395,20 +550,50 @@ function YerimModi() {
           />
         </div>
 
-        {/* 직책 입력 */}
+        {/* 소속 선택 */}
+        <div>
+          <label
+            htmlFor="ministryCode"
+            className="block text-sm font-medium mb-2"
+          >
+            소속 <span className="text-red-500">*</span>
+          </label>
+          <select
+            id="ministryCode"
+            name="ministryCode"
+            value={formData.ministryCode}
+            onChange={handleChange}
+            required
+            className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
+          >
+            <option value="">소속 선택</option>
+            {ministryCodes.map((code) => (
+              <option key={code} value={code}>
+                {code}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        {/* 직분 선택 */}
         <div>
           <label htmlFor="position" className="block text-sm font-medium mb-2">
-            직책
+            직분
           </label>
-          <input
-            type="text"
+          <select
             id="position"
             name="position"
             value={formData.position}
             onChange={handleChange}
             className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
-            placeholder="직책을 입력하세요 (선택사항)"
-          />
+          >
+            <option value="">직분 선택 (선택사항)</option>
+            {POSITIONS.map((position) => (
+              <option key={position} value={position}>
+                {position}
+              </option>
+            ))}
+          </select>
         </div>
 
         {/* 파트 선택 (라디오 버튼) */}
@@ -491,7 +676,7 @@ function YerimModi() {
           </button>
           <button
             type="button"
-            onClick={() => navigate(`/yerim?code=${ministryCode}`)}
+            onClick={() => navigate(`/yerim?code=${contextMinistryCode || ""}`)}
             className="px-6 py-3 border rounded-lg font-medium hover:bg-accent transition-colors"
           >
             취소
