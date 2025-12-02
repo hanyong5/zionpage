@@ -47,11 +47,11 @@ export const YerimProvider = ({ children }) => {
         const currentYear = new Date().getFullYear();
         const nextYear = currentYear + 1;
 
-        // membership 테이블에서 해당 ministry에 속한 id, member_id, part, is_active, grade, year, position 가져오기
+        // membership 테이블에서 해당 ministry에 속한 id, member_id, part, is_active, grade, year, position, leader 가져오기
         // 현재 년도와 다음 년도만 필터링
         const { data: membershipData, error: membershipError } = await supabase
           .from("membership")
-          .select("id, member_id, part, is_active, grade, year, position")
+          .select("id, member_id, part, is_active, grade, year, position, leader")
           .eq("ministry_id", ministryData.id)
           .in("year", [currentYear, nextYear])
           .order("year", { ascending: false });
@@ -109,6 +109,7 @@ export const YerimProvider = ({ children }) => {
             year: firstMembership?.year || null, // membership의 year
             membershipId: firstMembership?.id || null, // membership의 id
             position: firstMembership?.position || null, // membership의 position
+            leader: firstMembership?.leader || null, // membership의 leader
             ministryName: ministryInfo?.name || null,
             // 모든 년도의 membership 정보 저장
             allMemberships: allYearMemberships,
@@ -136,7 +137,7 @@ export const YerimProvider = ({ children }) => {
           await supabase
             .from("membership")
             .select(
-              "id, member_id, part, is_active, grade, year, position, ministry_id"
+              "id, member_id, part, is_active, grade, year, position, leader, ministry_id"
             )
             .in("year", [currentYear, nextYear])
             .order("year", { ascending: false });
@@ -183,6 +184,7 @@ export const YerimProvider = ({ children }) => {
             year: firstMembership?.year || null,
             membershipId: firstMembership?.id || null, // membership의 id
             position: firstMembership?.position || null, // membership의 position
+            leader: firstMembership?.leader || null, // membership의 leader
             ministryName: ministry?.name || null,
             // 모든 년도의 membership 정보 저장
             allMemberships: allYearMemberships,
@@ -205,7 +207,7 @@ export const YerimProvider = ({ children }) => {
 
   const addMember = async (memberData) => {
     try {
-      // part, is_active, ministryCode, grade, year, position은 membership 테이블에만 저장
+      // part, is_active, ministryCode, grade, year, position, leader는 membership 테이블에만 저장
       const {
         part,
         is_active,
@@ -213,6 +215,7 @@ export const YerimProvider = ({ children }) => {
         grade,
         year,
         position,
+        leader,
         ...memberFields
       } = memberData;
 
@@ -241,7 +244,7 @@ export const YerimProvider = ({ children }) => {
         throw ministryError;
       }
 
-      // 3. membership 테이블에 관계 추가 (part, grade, year, position 포함)
+      // 3. membership 테이블에 관계 추가 (part, grade, year, position, leader 포함)
       // year는 formData에서 가져오거나 현재 년도로 자동 설정
       const yearToUse = year || new Date().getFullYear();
       const { error: membershipError } = await supabase
@@ -254,6 +257,7 @@ export const YerimProvider = ({ children }) => {
             grade: grade || null,
             year: yearToUse,
             position: position || null,
+            leader: leader || null,
             is_active: true,
           },
         ]);
@@ -272,7 +276,7 @@ export const YerimProvider = ({ children }) => {
 
   const updateMember = async (id, memberData) => {
     try {
-      // part, is_active, ministryCode, grade, year, position, membershipId는 membership 테이블에만 저장
+      // part, is_active, ministryCode, grade, year, position, leader, membershipId는 membership 테이블에만 저장
       const {
         part,
         is_active,
@@ -280,6 +284,7 @@ export const YerimProvider = ({ children }) => {
         grade,
         year,
         position,
+        leader,
         membershipId,
         ...memberFields
       } = memberData;
@@ -352,6 +357,7 @@ export const YerimProvider = ({ children }) => {
                 grade: grade || null,
                 year: yearToUse,
                 position: position || null,
+                leader: leader || null,
               })
               .eq("id", newMembership.id);
 
@@ -370,6 +376,7 @@ export const YerimProvider = ({ children }) => {
                   grade: grade || null,
                   year: yearToUse,
                   position: position || null,
+                  leader: leader || null,
                   is_active: is_active !== false,
                 },
               ]);
@@ -388,6 +395,7 @@ export const YerimProvider = ({ children }) => {
               grade: grade || null,
               year: year || null,
               position: position || null,
+              leader: leader || null,
             })
             .eq("id", membershipId);
 
@@ -422,6 +430,7 @@ export const YerimProvider = ({ children }) => {
               grade: grade || null,
               year: yearToUse,
               position: position || null,
+              leader: leader || null,
             })
             .eq("id", existingMembership.id);
 
@@ -440,6 +449,7 @@ export const YerimProvider = ({ children }) => {
                 grade: grade || null,
                 year: yearToUse,
                 position: position || null,
+                leader: leader || null,
                 is_active: is_active !== false,
               },
             ]);

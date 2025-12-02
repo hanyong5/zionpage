@@ -1,12 +1,62 @@
-import React from "react";
-import { Link } from "react-router-dom";
+import React, { useMemo, useState, useEffect } from "react";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { useCalen } from "../context/CalenContext";
 import { format } from "date-fns";
 import { ko } from "date-fns/locale/ko";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import supabase from "../../utils/supabase";
 
 function CalenList() {
+  const [searchParams] = useSearchParams();
   const { songs, loading, error } = useCalen();
+  const [ministryId, setMinistryId] = useState(null);
+  const navigate = useNavigate();
+  // URL 쿼리 파라미터에서 code 가져오기
+  const code = searchParams.get("code");
+
+  // code가 있으면 ministry 테이블에서 ministry_id 조회
+  useEffect(() => {
+    const fetchMinistryId = async () => {
+      if (!code) {
+        setMinistryId(null);
+        return;
+      }
+
+      try {
+        const { data, error } = await supabase
+          .from("ministry")
+          .select("id")
+          .eq("name", code)
+          .single();
+
+        if (error) {
+          console.error("소속 조회 오류:", error);
+          setMinistryId(null);
+          return;
+        }
+
+        if (data) {
+          setMinistryId(data.id);
+        } else {
+          setMinistryId(null);
+        }
+      } catch (err) {
+        console.error("소속 조회 중 오류:", err);
+        setMinistryId(null);
+      }
+    };
+
+    fetchMinistryId();
+  }, [code]);
+
+  // ministry_id에 따라 songs 필터링
+  const filteredSongs = useMemo(() => {
+    if (!code || !ministryId) {
+      return songs;
+    }
+    // ministry_id가 일치하는 경우만 필터링
+    return songs.filter((song) => song.ministry_id === ministryId);
+  }, [songs, code, ministryId]);
 
   if (loading) {
     return <div className="p-6">로딩 중...</div>;
@@ -22,24 +72,41 @@ function CalenList() {
         <CardHeader className="p-4 sm:p-4">
           <div className="flex items-center justify-between">
             <CardTitle className="text-xl sm:text-2xl md:text-3xl font-bold">
-              찬양 리스트
+              찬양 리스트{code && ` - ${code}`}
             </CardTitle>
             <Link
-              to="/calen/write"
+              to={code ? `/calen/write?code=${code}` : "/calen/write"}
               className="px-4 py-2 bg-primary text-primary-foreground rounded-lg font-medium hover:bg-primary/90 transition-colors text-sm sm:text-base"
             >
               찬양넣기
             </Link>
           </div>
+          <div className="flex gap-2 mb-2">
+            <button
+              onClick={() => navigate("/calen/list?code=시온성가대")}
+              className="px-3 py-1 text-sm bg-primary text-primary-foreground rounded-md hover:bg-primary/90 transition-colors"
+            >
+              시온
+            </button>
+
+            <button
+              onClick={() => navigate("/calen/list?code=예루살렘성가대")}
+              className="px-3 py-1 text-sm bg-primary text-primary-foreground rounded-md hover:bg-primary/90 transition-colors"
+            >
+              예루살롐
+            </button>
+          </div>
         </CardHeader>
         <CardContent className="p-4 sm:p-6">
-          {songs.length === 0 ? (
+          {filteredSongs.length === 0 ? (
             <div className="text-center text-muted-foreground py-8">
-              찬양 데이터가 없습니다.
+              {code
+                ? `${code}의 찬양 데이터가 없습니다.`
+                : "찬양 데이터가 없습니다."}
             </div>
           ) : (
             <div className="space-y-4">
-              {songs.map((song) => (
+              {filteredSongs.map((song) => (
                 <div
                   key={song.id}
                   className="border rounded-lg p-4 bg-card hover:bg-accent transition-colors"
@@ -53,12 +120,28 @@ function CalenList() {
                   </div>
 
                   <div className="flex items-center justify-between">
-                    <Link
-                      to={`/calen/view/${song.id}`}
-                      className="px-3 py-1 text-sm bg-primary text-secondary-foreground text-white rounded-md hover:bg-secondary/90 transition-colors"
-                    >
-                      찬양보기
-                    </Link>
+                    <div>
+                      <Link
+                        to={`/calen/view/${song.id}`}
+                        className="px-3 py-1 text-sm bg-primary text-primary-foreground rounded-md hover:bg-primary/90 transition-colors"
+                      >
+                        찬양보기
+                      </Link>
+                      {/* 소속 표시 */}
+                      {song.ministry_id &&
+                        (song.ministry_id === 2 || song.ministry_id === 1) && (
+                          <span
+                            className={`inline-block ml-2 px-2 py-1 rounded text-xs font-semibold
+                          ${
+                            song.ministry_id === 2
+                              ? "bg-blue-100 text-blue-700"
+                              : "bg-yellow-100 text-yellow-700"
+                          }`}
+                          >
+                            {song.ministry_id === 2 ? "시온" : "예루살롐"}
+                          </span>
+                        )}
+                    </div>
 
                     {song.singdate && (
                       <div className="text-lg font-bold text-muted-foreground">

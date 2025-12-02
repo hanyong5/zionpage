@@ -1,12 +1,21 @@
-import React, { useMemo, useState } from "react";
+import React, { useMemo, useState, useEffect } from "react";
 import CustomCalendar from "@/components/ui/custom-calendar";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { format } from "date-fns";
 import { ko } from "date-fns/locale/ko";
 import holidaysData from "../../data/holidays.json";
+import supabase from "../../utils/supabase";
+import { Link } from "react-router-dom";
 
 function AttendCalendar() {
   const [selectedDate, setSelectedDate] = useState(new Date());
+  const [ministries, setMinistries] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
+  const [selectedMinistry, setSelectedMinistry] = useState(null);
+  const [availableRounds, setAvailableRounds] = useState({});
+  const [attendanceDates, setAttendanceDates] = useState([]);
+  const [attendancesByDate, setAttendancesByDate] = useState({});
   const holidays = holidaysData ?? [];
 
   // 공휴일 날짜 배열
@@ -46,6 +55,279 @@ function AttendCalendar() {
     return holidayNames[key] || null;
   }, [selectedDate, holidayNames]);
 
+  // ministry 목록 가져오기
+  useEffect(() => {
+    const fetchMinistries = async () => {
+      try {
+        const { data, error } = await supabase
+          .from("ministry")
+          .select("id, name")
+          .order("name");
+
+        if (error) {
+          console.error("소속 목록 가져오기 오류:", error);
+          setError(error.message);
+          return;
+        }
+
+        if (data) {
+          setMinistries(data);
+        }
+      } catch (err) {
+        console.error("소속 목록 가져오기 중 오류:", err);
+        setError(err.message);
+      }
+    };
+
+    fetchMinistries();
+  }, []);
+
+  // 출석부가 생성된 날짜 가져오기
+  useEffect(() => {
+    const fetchAttendanceDates = async () => {
+      try {
+        // attend 테이블에서 출석부가 있는 날짜들 가져오기 (중복 제거)
+        const { data, error } = await supabase
+          .from("attend")
+          .select("attendance_date, ministry:ministry(id, name), round")
+          .order("attendance_date", { ascending: false });
+
+        if (error) {
+          console.error("출석부 날짜 가져오기 오류:", error);
+          return;
+        }
+
+        if (data && data.length > 0) {
+          // 날짜별로 그룹화
+          const datesMap = {};
+          const datesSet = new Set();
+
+          data.forEach((attendance) => {
+            const dateString = attendance.attendance_date;
+            datesSet.add(dateString);
+
+            if (!datesMap[dateString]) {
+              datesMap[dateString] = [];
+            }
+
+            datesMap[dateString].push({
+              ministry: attendance.ministry?.name || "알 수 없음",
+              round: attendance.round || "1",
+            });
+          });
+
+          // 날짜 배열 생성 (Date 객체로 변환)
+          const dates = Array.from(datesSet).map((dateString) => {
+            const date = new Date(dateString);
+            date.setHours(0, 0, 0, 0);
+            return date;
+          });
+
+          setAttendanceDates(dates);
+          setAttendancesByDate(datesMap);
+        } else {
+          setAttendanceDates([]);
+          setAttendancesByDate({});
+        }
+      } catch (err) {
+        console.error("출석부 날짜 가져오기 중 오류:", err);
+      }
+    };
+
+    fetchAttendanceDates();
+  }, []);
+
+  // 부서 선택 시 사용 가능한 round 확인
+  const handleMinistrySelect = async (ministryId, ministryName) => {
+    if (!selectedDate) return;
+
+    setError(null);
+    const dateString = format(selectedDate, "yyyy-MM-dd");
+
+    try {
+      // 해당 날짜와 ministry_id로 이미 생성된 round 확인
+      const { data: existing, error: checkError } = await supabase
+        .from("attend")
+        .select("round")
+        .eq("attendance_date", dateString)
+        .eq("ministry_id", ministryId);
+
+      if (checkError) {
+        throw checkError;
+      }
+
+      // 사용된 round 목록
+      const usedRounds = new Set(
+        (existing || []).map((e) => e.round).filter(Boolean)
+      );
+
+      // 사용 가능한 round (1, 2, 3 중 사용되지 않은 것)
+      const available = [1, 2, 3].filter((r) => !usedRounds.has(r.toString()));
+
+      if (available.length === 0) {
+        setError(
+          `${ministryName}의 ${dateString} 출석부는 이미 3개 모두 생성되었습니다.`
+        );
+        return;
+      }
+
+      setSelectedMinistry({ id: ministryId, name: ministryName });
+      setAvailableRounds((prev) => ({
+        ...prev,
+        [ministryId]: available,
+      }));
+    } catch (err) {
+      setError(err.message || "출석부 확인 중 오류가 발생했습니다.");
+    }
+  };
+
+  // 출석부 생성 핸들러
+  const handleCreateAttendance = async (ministryId, ministryName, round) => {
+    if (!selectedDate) return;
+
+    setLoading(true);
+    setError(null);
+
+    try {
+      // 날짜를 YYYY-MM-DD 형식으로 변환
+      const dateString = format(selectedDate, "yyyy-MM-dd");
+      const currentYear = new Date().getFullYear();
+
+      // 해당 날짜, ministry_id, round로 이미 출석부가 있는지 확인
+      const { data: existing, error: checkError } = await supabase
+        .from("attend")
+        .select("id")
+        .eq("attendance_date", dateString)
+        .eq("ministry_id", ministryId)
+        .eq("round", round.toString())
+        .maybeSingle();
+
+      if (checkError) {
+        throw checkError;
+      }
+
+      if (existing) {
+        setError(
+          `${ministryName}의 ${dateString} Round ${round} 출석부가 이미 존재합니다.`
+        );
+        setLoading(false);
+        return;
+      }
+
+      // 해당 ministry에 속한 현재 년도의 활성 회원들 조회
+      const { data: membershipData, error: membershipError } = await supabase
+        .from("membership")
+        .select("member_id")
+        .eq("ministry_id", ministryId)
+        .eq("is_active", true)
+        .eq("year", currentYear)
+        .order("member_id");
+
+      if (membershipError) {
+        throw membershipError;
+      }
+
+      if (!membershipData || membershipData.length === 0) {
+        setError(`${ministryName}에 활성 회원이 없습니다.`);
+        setLoading(false);
+        return;
+      }
+
+      // 각 회원에 대해 출석 레코드 생성
+      const attendRecords = membershipData.map((membership) => ({
+        attendance_date: dateString,
+        ministry_id: ministryId,
+        member_id: membership.member_id,
+        round: round.toString(), // 선택한 round
+        status: "결석", // 기본값은 결석
+        memo: null,
+      }));
+
+      const { error: insertError } = await supabase
+        .from("attend")
+        .insert(attendRecords);
+
+      if (insertError) {
+        throw insertError;
+      }
+
+      // 성공 메시지 및 리스트 페이지로 이동
+      alert(
+        `${ministryName}의 ${dateString} Round ${round} 출석부가 생성되었습니다. (${membershipData.length}명)`
+      );
+
+      // 선택 초기화
+      setSelectedMinistry(null);
+      setAvailableRounds({});
+
+      // 출석부 날짜 목록 새로고침
+      const fetchAttendanceDates = async () => {
+        try {
+          const { data, error } = await supabase
+            .from("attend")
+            .select("attendance_date, ministry:ministry(id, name), round")
+            .order("attendance_date", { ascending: false });
+
+          if (error) {
+            console.error("출석부 날짜 가져오기 오류:", error);
+            return;
+          }
+
+          if (data && data.length > 0) {
+            const datesMap = {};
+            const datesSet = new Set();
+
+            data.forEach((attendance) => {
+              const dateString = attendance.attendance_date;
+              datesSet.add(dateString);
+
+              if (!datesMap[dateString]) {
+                datesMap[dateString] = [];
+              }
+
+              datesMap[dateString].push({
+                ministry: attendance.ministry?.name || "알 수 없음",
+                round: attendance.round || "1",
+              });
+            });
+
+            const dates = Array.from(datesSet).map((dateString) => {
+              const date = new Date(dateString);
+              date.setHours(0, 0, 0, 0);
+              return date;
+            });
+
+            setAttendanceDates(dates);
+            setAttendancesByDate(datesMap);
+          } else {
+            setAttendanceDates([]);
+            setAttendancesByDate({});
+          }
+        } catch (err) {
+          console.error("출석부 날짜 가져오기 중 오류:", err);
+        }
+      };
+
+      fetchAttendanceDates();
+
+      // 출석부 리스트 페이지로 이동
+      window.location.href = `/attend/list?date=${dateString}`;
+    } catch (err) {
+      setError(err.message || "출석부 생성 중 오류가 발생했습니다.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // 날짜 선택 핸들러 (모든 날짜 선택 가능)
+  const handleDateSelect = (date) => {
+    setSelectedDate(date);
+    setError(null);
+    // 부서 선택 초기화
+    setSelectedMinistry(null);
+    setAvailableRounds({});
+  };
+
   return (
     <div className="p-3 sm:p-4 md:p-6 min-h-screen">
       <Card className="max-w-full sm:max-w-2xl md:max-w-4xl lg:max-w-5xl xl:max-w-6xl mx-auto">
@@ -60,11 +342,11 @@ function AttendCalendar() {
               <CustomCalendar
                 currentDate={selectedDate}
                 selectedDate={selectedDate}
-                onDateSelect={setSelectedDate}
+                onDateSelect={handleDateSelect}
                 holidayDates={holidayDates}
                 holidayNames={holidayNames}
-                eventDates={[]}
-                eventsByDate={{}}
+                eventDates={attendanceDates}
+                eventsByDate={attendancesByDate}
                 songsByDate={{}}
                 className="w-full"
               />
@@ -77,14 +359,73 @@ function AttendCalendar() {
             </h3>
 
             {selectedHoliday ? (
-              <div className="p-4 bg-primary/10 border border-primary/30 rounded-lg text-center text-base sm:text-lg font-medium">
+              <div className="p-4 bg-primary/10 border border-primary/30 rounded-lg text-center text-base sm:text-lg font-medium mb-4">
                 {selectedHoliday}
               </div>
             ) : (
-              <div className="p-4 bg-muted border rounded-lg text-center text-sm sm:text-base text-muted-foreground">
+              <div className="p-4 bg-muted border rounded-lg text-center text-sm sm:text-base text-muted-foreground mb-4">
                 등록된 공휴일이 없습니다.
               </div>
             )}
+
+            {/* 부서별 출석 버튼 */}
+            <div className="mb-4">
+              <h4 className="text-base sm:text-lg font-semibold mb-3">
+                부서별 출석부 생성 (하루 최대 3개, Round 1, 2, 3)
+              </h4>
+              {error && (
+                <div className="p-3 bg-destructive/10 text-destructive rounded-lg mb-3 text-sm">
+                  {error}
+                </div>
+              )}
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
+                {ministries.map((ministry) => (
+                  <div key={ministry.id} className="space-y-2">
+                    <button
+                      onClick={() =>
+                        handleMinistrySelect(ministry.id, ministry.name)
+                      }
+                      disabled={loading}
+                      className="w-full px-4 py-2 bg-primary text-primary-foreground rounded-lg font-medium hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm"
+                    >
+                      {ministry.name}
+                    </button>
+                    {selectedMinistry?.id === ministry.id &&
+                      availableRounds[ministry.id] && (
+                        <div className="flex gap-1">
+                          {availableRounds[ministry.id].map((round) => (
+                            <button
+                              key={round}
+                              onClick={() =>
+                                handleCreateAttendance(
+                                  ministry.id,
+                                  ministry.name,
+                                  round
+                                )
+                              }
+                              disabled={loading}
+                              className="flex-1 px-2 py-1 bg-green-600 text-white rounded text-xs font-medium hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                            >
+                              R{round}
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* 출석부 리스트 링크 */}
+            <div className="mt-4 pt-4 border-t">
+              <Link
+                to={`/attend/list?date=${format(selectedDate, "yyyy-MM-dd")}`}
+                className="block w-full px-4 py-2 bg-secondary text-secondary-foreground rounded-lg font-medium hover:bg-secondary/90 transition-colors text-center"
+              >
+                {format(selectedDate, "yyyy년 MM월 dd일", { locale: ko })}{" "}
+                출석부 리스트 보기
+              </Link>
+            </div>
           </div>
         </CardContent>
       </Card>

@@ -1,11 +1,22 @@
-import React, { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import React, { useState, useEffect } from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { useCalen } from "../context/CalenContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 function CalenWrite() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { addSong } = useCalen();
+
+  // URL 쿼리 파라미터에서 code 가져오기
+  const code = searchParams.get("code");
+
+  // code에 따라 ministry_id 매핑
+  const getMinistryId = (code) => {
+    if (code === "시온성가대") return 2;
+    if (code === "예루살렘성가대") return 1;
+    return null;
+  };
 
   const [formData, setFormData] = useState({
     title: "",
@@ -82,6 +93,14 @@ function CalenWrite() {
         type: formData.type,
       };
 
+      // code가 있으면 ministry_id 추가
+      if (code) {
+        const ministryId = getMinistryId(code);
+        if (ministryId) {
+          songData.ministry_id = ministryId;
+        }
+      }
+
       if (formData.type === "one") {
         songData.link = formData.link;
       } else if (formData.type === "four") {
@@ -94,8 +113,8 @@ function CalenWrite() {
 
       const result = await addSong(songData);
       if (result.success) {
-        // 성공 시 리스트 페이지로 이동
-        navigate("/calen/list");
+        // 성공 시 리스트 페이지로 이동 (code 파라미터 유지)
+        navigate(code ? `/calen/list?code=${code}` : "/calen/list");
       } else {
         setError(result.error || "찬양 추가에 실패했습니다.");
       }
@@ -326,7 +345,9 @@ function CalenWrite() {
               </button>
               <button
                 type="button"
-                onClick={() => navigate("/calen/list")}
+                onClick={() =>
+                  navigate(code ? `/calen/list?code=${code}` : "/calen/list")
+                }
                 className="px-6 py-3 border rounded-lg font-medium hover:bg-accent transition-colors"
               >
                 취소

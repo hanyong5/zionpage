@@ -2,17 +2,7 @@ import React, { useState, useEffect } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { useYerim } from "../context/YerimContext";
 import supabase from "../../utils/supabase";
-
-const PARTS = ["SOPRANO", "ALTO", "TENOR", "BASS"];
-const POSITIONS = [
-  "중학생",
-  "고등학생",
-  "대학생",
-  "청년",
-  "집사",
-  "시무집사",
-  "권사",
-];
+import { PARTS, POSITIONS, LEADERS } from "./constants";
 
 function YerimModi() {
   const navigate = useNavigate();
@@ -27,19 +17,25 @@ function YerimModi() {
 
   const [ministryCodes, setMinistryCodes] = useState([]);
 
+  // URL 쿼리 파라미터에서 code 가져오기
+  const codeFromUrl = searchParams.get("code");
+
   const [formData, setFormData] = useState({
     name: "",
     phone: "",
     birth: "",
-    grade: "",
-    part: "SOPRANO",
     memo: "",
     join_date: "",
-    ministryCode: "",
-    position: "",
-    is_active: true,
     photo: "",
-    year: new Date().getFullYear(), // 기본값은 현재 년도
+    is_active: true,
+    // 부서 가입 정보
+    year: new Date().getFullYear(),
+    ministryCode: codeFromUrl || contextMinistryCode || "",
+    part: "SOPRANO",
+    position: "",
+    grade: "",
+    leader: "",
+    membershipId: null,
   });
 
   // ministry 테이블에서 소속 목록 가져오기
@@ -57,7 +53,16 @@ function YerimModi() {
         }
 
         if (data) {
-          setMinistryCodes(data.map((item) => item.name));
+          const codes = data.map((item) => item.name);
+          setMinistryCodes(codes);
+
+          // URL의 code 파라미터가 있고, ministry 목록에 존재하면 자동 선택
+          if (codeFromUrl && codes.includes(codeFromUrl)) {
+            setFormData((prev) => ({
+              ...prev,
+              ministryCode: codeFromUrl,
+            }));
+          }
         }
       } catch (err) {
         console.error("소속 목록 가져오기 중 오류:", err);
@@ -65,7 +70,7 @@ function YerimModi() {
     };
 
     fetchMinistries();
-  }, []);
+  }, [codeFromUrl]);
   const [previewImage, setPreviewImage] = useState(null);
   const [uploading, setUploading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -106,23 +111,29 @@ function YerimModi() {
           name: member.name || "",
           phone: member.phone || "",
           birth: member.birth || "",
-          grade: selectedMembership?.grade || member.grade || "",
+          memo: member.memo || "",
+          join_date: member.join_date || "",
+          photo: member.photo || "",
+          is_active:
+            selectedMembership?.is_active !== false
+              ? selectedMembership.is_active
+              : member.is_active !== false,
+          // 부서 가입 정보
+          year: initialYear,
+          ministryCode:
+            selectedMembership?.ministry?.name ||
+            codeFromUrl ||
+            contextMinistryCode ||
+            "",
           part:
             selectedMembership?.part ||
             member.membershipPart ||
             member.part ||
             "SOPRANO",
-          memo: member.memo || "",
-          join_date: member.join_date || "",
-          ministryCode: contextMinistryCode || "",
           position: selectedMembership?.position || member.position || "",
-          is_active:
-            selectedMembership?.is_active !== false
-              ? selectedMembership.is_active
-              : member.is_active !== false,
-          photo: member.photo || "",
-          year: initialYear, // 기존 년도 값 가져오기
-          membershipId: selectedMembership?.id || member.membershipId || null, // 선택된 년도의 membership id 가져오기
+          grade: selectedMembership?.grade || member.grade || "",
+          leader: selectedMembership?.leader || "",
+          membershipId: selectedMembership?.id || member.membershipId || null,
         });
         if (member.photo) {
           setPreviewImage(member.photo);
@@ -167,13 +178,17 @@ function YerimModi() {
             newData.grade = selectedMembership.grade || "";
             newData.part = selectedMembership.part || prev.part || "SOPRANO";
             newData.position = selectedMembership.position || "";
+            newData.leader = selectedMembership.leader || "";
             newData.is_active = selectedMembership.is_active !== false;
             newData.membershipId = selectedMembership.id || null;
+            newData.ministryCode =
+              selectedMembership.ministry?.name || prev.ministryCode || "";
           } else {
             // 해당 년도의 membership이 없으면 기본값 사용
             newData.grade = "";
             newData.part = prev.part || "SOPRANO";
             newData.position = "";
+            newData.leader = "";
             newData.is_active = true;
             newData.membershipId = null;
           }
@@ -355,14 +370,27 @@ function YerimModi() {
       return;
     }
 
-    if (!formData.part) {
-      setError("파트를 선택해주세요.");
+    // 부서 가입 정보 검증
+    if (!formData.ministryCode) {
+      setError("소속을 선택해주세요.");
       setSubmitting(false);
       return;
     }
 
-    if (!formData.ministryCode) {
-      setError("소속을 선택해주세요.");
+    if (!formData.position) {
+      setError("직분을 선택해주세요.");
+      setSubmitting(false);
+      return;
+    }
+
+    // 학생일 경우 학년 확인
+    if (
+      (formData.position === "중학생" ||
+        formData.position === "고등학생" ||
+        formData.position === "대학생") &&
+      !formData.grade
+    ) {
+      setError("학년을 선택해주세요.");
       setSubmitting(false);
       return;
     }
@@ -456,42 +484,6 @@ function YerimModi() {
           />
         </div>
 
-        {/* 학년 입력 */}
-        <div>
-          <label htmlFor="grade" className="block text-sm font-medium mb-2">
-            학년
-          </label>
-          <input
-            type="number"
-            id="grade"
-            name="grade"
-            value={formData.grade}
-            onChange={handleChange}
-            min="1"
-            max="6"
-            className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
-            placeholder="학년을 입력하세요 (선택사항)"
-          />
-        </div>
-
-        {/* 년도 입력 */}
-        <div>
-          <label htmlFor="year" className="block text-sm font-medium mb-2">
-            년도
-          </label>
-          <input
-            type="number"
-            id="year"
-            name="year"
-            value={formData.year}
-            onChange={handleChange}
-            min="2000"
-            max="2100"
-            className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
-            placeholder="년도를 입력하세요"
-          />
-        </div>
-
         {/* 사진 첨부 */}
         <div>
           <label className="block text-sm font-medium mb-2">사진</label>
@@ -550,78 +542,222 @@ function YerimModi() {
           />
         </div>
 
-        {/* 소속 선택 */}
-        <div>
-          <label
-            htmlFor="ministryCode"
-            className="block text-sm font-medium mb-2"
-          >
-            소속 <span className="text-red-500">*</span>
-          </label>
-          <select
-            id="ministryCode"
-            name="ministryCode"
-            value={formData.ministryCode}
-            onChange={handleChange}
-            required
-            className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
-          >
-            <option value="">소속 선택</option>
-            {ministryCodes.map((code) => (
-              <option key={code} value={code}>
-                {code}
-              </option>
-            ))}
-          </select>
-        </div>
+        {/* 부서 가입 정보 섹션 */}
+        <div className="border-t pt-6 mt-6">
+          <h3 className="text-xl font-bold mb-4">부서 가입 정보</h3>
 
-        {/* 직분 선택 */}
-        <div>
-          <label htmlFor="position" className="block text-sm font-medium mb-2">
-            직분
-          </label>
-          <select
-            id="position"
-            name="position"
-            value={formData.position}
-            onChange={handleChange}
-            className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
-          >
-            <option value="">직분 선택 (선택사항)</option>
-            {POSITIONS.map((position) => (
-              <option key={position} value={position}>
-                {position}
-              </option>
-            ))}
-          </select>
-        </div>
+          {/* 년도 선택 - 버튼 */}
+          <div className="mb-4">
+            <label className="block text-sm font-medium mb-2">
+              년도 <span className="text-red-500">*</span>
+            </label>
+            <div className="flex gap-2 flex-wrap">
+              {[new Date().getFullYear(), new Date().getFullYear() + 1].map(
+                (year) => (
+                  <button
+                    key={year}
+                    type="button"
+                    onClick={() => {
+                      const member = getMemberById(id);
+                      if (
+                        member &&
+                        member.allMemberships &&
+                        member.allMemberships.length > 0
+                      ) {
+                        const selectedMembership = member.allMemberships.find(
+                          (m) => m.year === year
+                        );
 
-        {/* 파트 선택 (라디오 버튼) */}
-        <div>
-          <label className="block text-sm font-medium mb-3">
-            파트 <span className="text-red-500">*</span>
-          </label>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            {PARTS.map((part) => (
-              <label
-                key={part}
-                className={`flex items-center p-4 border rounded-lg cursor-pointer transition-colors ${
-                  formData.part === part
-                    ? "border-primary bg-primary/10"
-                    : "border-border hover:bg-accent"
+                        if (selectedMembership) {
+                          setFormData({
+                            ...formData,
+                            year,
+                            grade: selectedMembership.grade || "",
+                            part:
+                              selectedMembership.part ||
+                              formData.part ||
+                              "SOPRANO",
+                            position: selectedMembership.position || "",
+                            leader: selectedMembership.leader || "",
+                            membershipId: selectedMembership.id || null,
+                            ministryCode:
+                              selectedMembership.ministry?.name ||
+                              formData.ministryCode ||
+                              "",
+                          });
+                        } else {
+                          setFormData({
+                            ...formData,
+                            year,
+                            grade: "",
+                            position: "",
+                            leader: "",
+                            membershipId: null,
+                          });
+                        }
+                      } else {
+                        setFormData({ ...formData, year });
+                      }
+                    }}
+                    className={`px-4 py-2 rounded-lg border transition-colors ${
+                      formData.year === year
+                        ? "bg-primary text-primary-foreground border-primary"
+                        : "bg-white border-border hover:bg-accent"
+                    }`}
+                  >
+                    {year}년
+                  </button>
+                )
+              )}
+            </div>
+          </div>
+
+          {/* 소속 선택 - 버튼 */}
+          <div className="mb-4">
+            <label className="block text-sm font-medium mb-2">
+              소속 <span className="text-red-500">*</span>
+            </label>
+            <div className="flex flex-wrap gap-2">
+              {ministryCodes.map((code) => (
+                <button
+                  key={code}
+                  type="button"
+                  onClick={() =>
+                    setFormData({
+                      ...formData,
+                      ministryCode: code,
+                      part: "SOPRANO", // 소속 변경 시 파트 초기화
+                    })
+                  }
+                  className={`px-4 py-2 rounded-lg border transition-colors text-sm ${
+                    formData.ministryCode === code
+                      ? "bg-primary text-primary-foreground border-primary"
+                      : "bg-white border-border hover:bg-accent"
+                  }`}
+                >
+                  {code}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* 직분 선택 - 버튼 */}
+          <div className="mb-4">
+            <label className="block text-sm font-medium mb-2">
+              직분 <span className="text-red-500">*</span>
+            </label>
+            <div className="flex flex-wrap gap-2">
+              {POSITIONS.map((position) => (
+                <button
+                  key={position}
+                  type="button"
+                  onClick={() =>
+                    setFormData({
+                      ...formData,
+                      position,
+                      grade: "", // 직분 변경 시 학년 초기화
+                    })
+                  }
+                  className={`px-4 py-2 rounded-lg border transition-colors text-sm ${
+                    formData.position === position
+                      ? "bg-primary text-primary-foreground border-primary"
+                      : "bg-white border-border hover:bg-accent"
+                  }`}
+                >
+                  {position}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* 파트 선택 - 시온성가대/예루살렘성가대일 때만 표시 */}
+          {(formData.ministryCode === "시온성가대" ||
+            formData.ministryCode === "예루살렘성가대") && (
+            <div className="mb-4">
+              <label className="block text-sm font-medium mb-2">파트</label>
+              <div className="grid grid-cols-2 gap-2">
+                {PARTS.map((part) => (
+                  <button
+                    key={part}
+                    type="button"
+                    onClick={() => setFormData({ ...formData, part })}
+                    className={`px-4 py-2 rounded-lg border transition-colors ${
+                      formData.part === part
+                        ? "bg-primary text-primary-foreground border-primary"
+                        : "bg-white border-border hover:bg-accent"
+                    }`}
+                  >
+                    {part}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* 학년 - 학생일 경우만 표시 */}
+          {(formData.position === "중학생" ||
+            formData.position === "고등학생" ||
+            formData.position === "대학생") && (
+            <div className="mb-4">
+              <label className="block text-sm font-medium mb-2">
+                학년 <span className="text-red-500">*</span>
+              </label>
+              <div className="flex flex-wrap gap-2">
+                {[1, 2, 3, 4, 5, 6].map((grade) => (
+                  <button
+                    key={grade}
+                    type="button"
+                    onClick={() =>
+                      setFormData({
+                        ...formData,
+                        grade: grade.toString(),
+                      })
+                    }
+                    className={`px-4 py-2 rounded-lg border transition-colors ${
+                      formData.grade === grade.toString()
+                        ? "bg-primary text-primary-foreground border-primary"
+                        : "bg-white border-border hover:bg-accent"
+                    }`}
+                  >
+                    {grade}학년
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* 리더 선택 - 버튼 */}
+          <div className="mb-4">
+            <label className="block text-sm font-medium mb-2">
+              리더 (선택사항)
+            </label>
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={() => setFormData({ ...formData, leader: "" })}
+                className={`px-4 py-2 rounded-lg border transition-colors text-sm ${
+                  !formData.leader
+                    ? "bg-primary text-primary-foreground border-primary"
+                    : "bg-white border-border hover:bg-accent"
                 }`}
               >
-                <input
-                  type="radio"
-                  name="part"
-                  value={part}
-                  checked={formData.part === part}
-                  onChange={handleChange}
-                  className="mr-2"
-                />
-                <span className="font-medium">{part}</span>
-              </label>
-            ))}
+                없음
+              </button>
+              {LEADERS.map((leader) => (
+                <button
+                  key={leader}
+                  type="button"
+                  onClick={() => setFormData({ ...formData, leader })}
+                  className={`px-4 py-2 rounded-lg border transition-colors text-sm ${
+                    formData.leader === leader
+                      ? "bg-primary text-primary-foreground border-primary"
+                      : "bg-white border-border hover:bg-accent"
+                  }`}
+                >
+                  {leader}
+                </button>
+              ))}
+            </div>
           </div>
         </div>
 

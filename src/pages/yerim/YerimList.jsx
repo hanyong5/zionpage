@@ -2,8 +2,7 @@ import React, { useState, useRef, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { useYerim } from "../context/YerimContext";
 import supabase from "../../utils/supabase";
-
-const PARTS = ["SOPRANO", "ALTO", "TENOR", "BASS"];
+import { PARTS } from "./constants";
 
 function YerimList() {
   const { members, loading, error, ministryCode, refreshMembers } = useYerim();

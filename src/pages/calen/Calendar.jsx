@@ -1,15 +1,57 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
+import { useSearchParams } from "react-router-dom";
 import CustomCalendar from "@/components/ui/custom-calendar";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { format, isSameDay } from "date-fns";
 import { ko } from "date-fns/locale/ko";
 import { useCalen } from "../context/CalenContext";
 import { Link } from "react-router-dom";
+import supabase from "../../utils/supabase";
 
 function Calendar() {
+  const [searchParams] = useSearchParams();
   const [date, setDate] = useState(new Date());
   const { events, holidays, songs, loading } = useCalen();
   const [activeTabs, setActiveTabs] = useState({}); // 각 찬양별 탭 상태 관리
+  const [ministryId, setMinistryId] = useState(null);
+
+  // URL 쿼리 파라미터에서 code 가져오기
+  const code = searchParams.get("code");
+
+  // code가 있으면 ministry 테이블에서 ministry_id 조회
+  useEffect(() => {
+    const fetchMinistryId = async () => {
+      if (!code) {
+        setMinistryId(null);
+        return;
+      }
+
+      try {
+        const { data, error } = await supabase
+          .from("ministry")
+          .select("id")
+          .eq("name", code)
+          .single();
+
+        if (error) {
+          console.error("소속 조회 오류:", error);
+          setMinistryId(null);
+          return;
+        }
+
+        if (data) {
+          setMinistryId(data.id);
+        } else {
+          setMinistryId(null);
+        }
+      } catch (err) {
+        console.error("소속 조회 중 오류:", err);
+        setMinistryId(null);
+      }
+    };
+
+    fetchMinistryId();
+  }, [code]);
 
   // 선택한 날짜의 행사일정 가져오기
   const selectedDateEvents = useMemo(() => {
@@ -68,20 +110,29 @@ function Calendar() {
     return namesMap;
   }, [holidays]);
 
+  // code에 따라 songs 필터링
+  const filteredSongs = useMemo(() => {
+    if (!code || !ministryId) {
+      return songs;
+    }
+    // ministry_id가 일치하는 경우만 필터링
+    return songs.filter((song) => song.ministry_id === ministryId);
+  }, [songs, code, ministryId]);
+
   // 선택한 날짜의 찬양 가져오기
   const selectedDateSongs = useMemo(() => {
     if (!date) return [];
-    return songs.filter((song) => {
+    return filteredSongs.filter((song) => {
       if (!song.singdate) return false;
       const songDate = new Date(song.singdate);
       return isSameDay(songDate, date);
     });
-  }, [date, songs]);
+  }, [date, filteredSongs]);
 
   // 날짜별 찬양 맵 (날짜를 키로 사용)
   const songsByDate = useMemo(() => {
     const songsMap = {};
-    songs.forEach((song) => {
+    filteredSongs.forEach((song) => {
       if (!song.singdate) return;
       const songDate = new Date(song.singdate);
       songDate.setHours(0, 0, 0, 0);
@@ -94,14 +145,14 @@ function Calendar() {
       songsMap[dateKey].push(song);
     });
     return songsMap;
-  }, [songs]);
+  }, [filteredSongs]);
 
   return (
     <div className="p-3 sm:p-4 md:p-6 min-h-screen">
       <Card className="max-w-full sm:max-w-2xl md:max-w-4xl lg:max-w-6xl xl:max-w-7xl 2xl:max-w-full mx-auto">
         <CardHeader className="p-4 sm:p-6">
           <CardTitle className="text-xl sm:text-2xl md:text-3xl font-bold text-center">
-            성가대일정
+            성가대일정{code && ` - ${code}`}
           </CardTitle>
         </CardHeader>
         <CardContent>
