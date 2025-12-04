@@ -7,6 +7,7 @@ import NotFound from "./pages/NotFound";
 import PartyComp from "./pages/party/PartyComp";
 import AttendComp from "./pages/attend/AttendComp";
 import YerimComp from "./pages/yerim/YerimComp";
+import PointComp from "./pages/point/PointComp";
 
 function App() {
   return (
@@ -20,6 +21,7 @@ function App() {
           {/* <Link to="/party">Party</Link> */}
           <Link to="/attend">출석부</Link>
           <Link to="/yerim">Attend</Link>
+          <Link to="/point">Point</Link>
         </div>
       </nav>
 
@@ -30,6 +32,7 @@ function App() {
         <Route path="/party/*" element={<PartyComp />} />
         <Route path="/attend/*" element={<AttendComp />} />
         <Route path="/yerim/*" element={<YerimComp />} />
+        <Route path="/point/*" element={<PointComp />} />
         <Route path="*" element={<NotFound />} />
       </Routes>
     </div>

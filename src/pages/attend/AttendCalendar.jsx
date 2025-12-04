@@ -14,8 +14,6 @@ function AttendCalendar() {
   const [error, setError] = useState(null);
   const [selectedMinistry, setSelectedMinistry] = useState(null);
   const [availableRounds, setAvailableRounds] = useState({});
-  const [attendanceDates, setAttendanceDates] = useState([]);
-  const [attendancesByDate, setAttendancesByDate] = useState({});
   const holidays = holidaysData ?? [];
 
   // 공휴일 날짜 배열
@@ -80,61 +78,6 @@ function AttendCalendar() {
     };
 
     fetchMinistries();
-  }, []);
-
-  // 출석부가 생성된 날짜 가져오기
-  useEffect(() => {
-    const fetchAttendanceDates = async () => {
-      try {
-        // attend 테이블에서 출석부가 있는 날짜들 가져오기 (중복 제거)
-        const { data, error } = await supabase
-          .from("attend")
-          .select("attendance_date, ministry:ministry(id, name), round")
-          .order("attendance_date", { ascending: false });
-
-        if (error) {
-          console.error("출석부 날짜 가져오기 오류:", error);
-          return;
-        }
-
-        if (data && data.length > 0) {
-          // 날짜별로 그룹화
-          const datesMap = {};
-          const datesSet = new Set();
-
-          data.forEach((attendance) => {
-            const dateString = attendance.attendance_date;
-            datesSet.add(dateString);
-
-            if (!datesMap[dateString]) {
-              datesMap[dateString] = [];
-            }
-
-            datesMap[dateString].push({
-              ministry: attendance.ministry?.name || "알 수 없음",
-              round: attendance.round || "1",
-            });
-          });
-
-          // 날짜 배열 생성 (Date 객체로 변환)
-          const dates = Array.from(datesSet).map((dateString) => {
-            const date = new Date(dateString);
-            date.setHours(0, 0, 0, 0);
-            return date;
-          });
-
-          setAttendanceDates(dates);
-          setAttendancesByDate(datesMap);
-        } else {
-          setAttendanceDates([]);
-          setAttendancesByDate({});
-        }
-      } catch (err) {
-        console.error("출석부 날짜 가져오기 중 오류:", err);
-      }
-    };
-
-    fetchAttendanceDates();
   }, []);
 
   // 부서 선택 시 사용 가능한 round 확인
@@ -260,56 +203,6 @@ function AttendCalendar() {
       setSelectedMinistry(null);
       setAvailableRounds({});
 
-      // 출석부 날짜 목록 새로고침
-      const fetchAttendanceDates = async () => {
-        try {
-          const { data, error } = await supabase
-            .from("attend")
-            .select("attendance_date, ministry:ministry(id, name), round")
-            .order("attendance_date", { ascending: false });
-
-          if (error) {
-            console.error("출석부 날짜 가져오기 오류:", error);
-            return;
-          }
-
-          if (data && data.length > 0) {
-            const datesMap = {};
-            const datesSet = new Set();
-
-            data.forEach((attendance) => {
-              const dateString = attendance.attendance_date;
-              datesSet.add(dateString);
-
-              if (!datesMap[dateString]) {
-                datesMap[dateString] = [];
-              }
-
-              datesMap[dateString].push({
-                ministry: attendance.ministry?.name || "알 수 없음",
-                round: attendance.round || "1",
-              });
-            });
-
-            const dates = Array.from(datesSet).map((dateString) => {
-              const date = new Date(dateString);
-              date.setHours(0, 0, 0, 0);
-              return date;
-            });
-
-            setAttendanceDates(dates);
-            setAttendancesByDate(datesMap);
-          } else {
-            setAttendanceDates([]);
-            setAttendancesByDate({});
-          }
-        } catch (err) {
-          console.error("출석부 날짜 가져오기 중 오류:", err);
-        }
-      };
-
-      fetchAttendanceDates();
-
       // 출석부 리스트 페이지로 이동
       window.location.href = `/attend/list?date=${dateString}`;
     } catch (err) {
@@ -317,15 +210,6 @@ function AttendCalendar() {
     } finally {
       setLoading(false);
     }
-  };
-
-  // 날짜 선택 핸들러 (모든 날짜 선택 가능)
-  const handleDateSelect = (date) => {
-    setSelectedDate(date);
-    setError(null);
-    // 부서 선택 초기화
-    setSelectedMinistry(null);
-    setAvailableRounds({});
   };
 
   return (
@@ -342,11 +226,11 @@ function AttendCalendar() {
               <CustomCalendar
                 currentDate={selectedDate}
                 selectedDate={selectedDate}
-                onDateSelect={handleDateSelect}
+                onDateSelect={setSelectedDate}
                 holidayDates={holidayDates}
                 holidayNames={holidayNames}
-                eventDates={attendanceDates}
-                eventsByDate={attendancesByDate}
+                eventDates={[]}
+                eventsByDate={{}}
                 songsByDate={{}}
                 className="w-full"
               />

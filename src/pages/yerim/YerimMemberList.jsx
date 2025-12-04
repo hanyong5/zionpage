@@ -1,15 +1,19 @@
 import React, { useState, useEffect } from "react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { useYerim } from "../context/YerimContext";
 import supabase from "../../utils/supabase";
 import { LEADERS, PARTS, POSITIONS } from "./constants";
 
 function YerimMemberList() {
+  const [searchParams, setSearchParams] = useSearchParams();
   const { members, loading, error, refreshMembers } = useYerim();
   const [searchTerm, setSearchTerm] = useState("");
   const [filteredMembers, setFilteredMembers] = useState([]);
   const [activeTab, setActiveTab] = useState("basic"); // "basic" 또는 "yearly"
   const [selectedYear, setSelectedYear] = useState("all"); // "all" 또는 특정 년도
+  const [selectedMinistry, setSelectedMinistry] = useState(
+    searchParams.get("code") || ""
+  );
   const [showJoinModal, setShowJoinModal] = useState(false);
   const [selectedMember, setSelectedMember] = useState(null);
   const [ministryCodes, setMinistryCodes] = useState([]);
@@ -20,32 +24,56 @@ function YerimMemberList() {
     position: "",
     grade: "",
     leader: "",
+    class: "",
   });
   const [joining, setJoining] = useState(false);
   const [joinError, setJoinError] = useState(null);
   const [deletingMembershipId, setDeletingMembershipId] = useState(null);
+  const [memberPoints, setMemberPoints] = useState({}); // member_id -> balance 매핑
 
-  // 검색어로 필터링
+  // 소속 선택 핸들러
+  const handleMinistryChange = (ministryCode) => {
+    setSelectedMinistry(ministryCode);
+    if (ministryCode) {
+      setSearchParams({ code: ministryCode });
+    } else {
+      setSearchParams({});
+    }
+  };
+
+  // 검색어 및 소속으로 필터링
   useEffect(() => {
     if (!members || members.length === 0) {
       setFilteredMembers([]);
       return;
     }
 
-    if (!searchTerm.trim()) {
-      setFilteredMembers(members);
-      return;
+    let filtered = members;
+
+    // 소속으로 필터링
+    if (selectedMinistry) {
+      filtered = filtered.filter((member) => {
+        if (member.allMemberships && member.allMemberships.length > 0) {
+          return member.allMemberships.some(
+            (ms) => ms.ministry?.name === selectedMinistry
+          );
+        }
+        return member.ministryName === selectedMinistry;
+      });
     }
 
-    const term = searchTerm.toLowerCase();
-    const filtered = members.filter((member) => {
-      const name = (member.name || "").toLowerCase();
-      const phone = (member.phone || "").toLowerCase();
-      return name.includes(term) || phone.includes(term);
-    });
+    // 검색어로 필터링
+    if (searchTerm.trim()) {
+      const term = searchTerm.toLowerCase();
+      filtered = filtered.filter((member) => {
+        const name = (member.name || "").toLowerCase();
+        const phone = (member.phone || "").toLowerCase();
+        return name.includes(term) || phone.includes(term);
+      });
+    }
 
     setFilteredMembers(filtered);
-  }, [members, searchTerm]);
+  }, [members, searchTerm, selectedMinistry]);
 
   // 날짜 포맷팅
   const formatDate = (dateString) => {
@@ -95,6 +123,21 @@ function YerimMemberList() {
     }
 
     return position;
+  };
+
+  // 성가대 외 부서에서 교사인지 확인
+  const isTeacherInNonChoir = (member) => {
+    if (!member.allMemberships || member.allMemberships.length === 0) {
+      return false;
+    }
+
+    const choirNames = ["시온성가대", "예루살렘성가대"];
+    return member.allMemberships.some(
+      (ms) =>
+        ms.leader === "교사" &&
+        ms.ministry?.name &&
+        !choirNames.includes(ms.ministry.name)
+    );
   };
 
   // membership 삭제 처리
@@ -158,6 +201,53 @@ function YerimMemberList() {
     fetchMinistries();
   }, []);
 
+  // URL 파라미터에서 소속 읽어오기
+  useEffect(() => {
+    const codeFromUrl = searchParams.get("code");
+    if (codeFromUrl) {
+      setSelectedMinistry(codeFromUrl);
+    } else {
+      setSelectedMinistry("");
+    }
+  }, [searchParams]);
+
+  // 포인트 정보 가져오기
+  useEffect(() => {
+    const fetchMemberPoints = async () => {
+      if (!filteredMembers || filteredMembers.length === 0) {
+        setMemberPoints({});
+        return;
+      }
+
+      try {
+        const memberIds = filteredMembers.map((m) => m.id);
+        const { data: pointsData, error } = await supabase
+          .from("member_points")
+          .select("id, balace")
+          .in("id", memberIds);
+
+        if (error) {
+          console.error("포인트 정보 가져오기 오류:", error);
+          return;
+        }
+
+        // member_id -> balance 매핑 생성
+        const pointsMap = {};
+        if (pointsData) {
+          pointsData.forEach((point) => {
+            pointsMap[point.id] = point.balace || 0;
+          });
+        }
+
+        setMemberPoints(pointsMap);
+      } catch (err) {
+        console.error("포인트 정보 가져오기 중 오류:", err);
+      }
+    };
+
+    fetchMemberPoints();
+  }, [filteredMembers]);
+
   // 가입 모달 열기
   const handleOpenJoinModal = (member) => {
     setSelectedMember(member);
@@ -168,6 +258,7 @@ function YerimMemberList() {
       position: "",
       grade: "",
       leader: "",
+      class: "",
     });
     setJoinError(null);
     setShowJoinModal(true);
@@ -258,6 +349,7 @@ function YerimMemberList() {
             position: joinFormData.position || null,
             grade: joinFormData.grade || null,
             leader: joinFormData.leader || null,
+            class: joinFormData.class || null,
             is_active: true,
           },
         ]);
@@ -348,25 +440,49 @@ function YerimMemberList() {
             </button>
           </div>
 
-          {/* 년도 선택 (년도별 정보 탭일 때만 표시) */}
+          {/* 년도 선택 및 소속 선택 (년도별 정보 탭일 때만 표시) */}
           {activeTab === "yearly" && (
-            <div className="flex items-center gap-2">
-              <label htmlFor="year-select" className="text-sm font-medium">
-                년도:
-              </label>
-              <select
-                id="year-select"
-                value={selectedYear}
-                onChange={(e) => setSelectedYear(e.target.value)}
-                className="px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary text-sm"
-              >
-                <option value="all">전체</option>
-                {getAvailableYears().map((year) => (
-                  <option key={year} value={year}>
-                    {year}년
-                  </option>
-                ))}
-              </select>
+            <div className="flex items-center gap-4">
+              <div className="flex items-center gap-2">
+                <label htmlFor="year-select" className="text-sm font-medium">
+                  년도:
+                </label>
+                <select
+                  id="year-select"
+                  value={selectedYear}
+                  onChange={(e) => setSelectedYear(e.target.value)}
+                  className="px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary text-sm"
+                >
+                  <option value="all">전체</option>
+                  {getAvailableYears().map((year) => (
+                    <option key={year} value={year}>
+                      {year}년
+                    </option>
+                  ))}
+                </select>
+              </div>
+              {/* 소속 선택 */}
+              <div className="flex items-center gap-2">
+                <label
+                  htmlFor="ministry-select"
+                  className="text-sm font-medium"
+                >
+                  소속:
+                </label>
+                <select
+                  id="ministry-select"
+                  value={selectedMinistry}
+                  onChange={(e) => handleMinistryChange(e.target.value)}
+                  className="px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary text-sm"
+                >
+                  <option value="">전체</option>
+                  {ministryCodes.map((code) => (
+                    <option key={code} value={code}>
+                      {code}
+                    </option>
+                  ))}
+                </select>
+              </div>
             </div>
           )}
         </div>
@@ -407,6 +523,11 @@ function YerimMemberList() {
                   <div className="flex-1 min-w-0">
                     <h3 className="font-semibold text-lg mb-1 truncate">
                       {member.name || "이름 없음"}
+                      {isTeacherInNonChoir(member) && (
+                        <span className="ml-2 text-sm text-primary font-normal">
+                          교사
+                        </span>
+                      )}
                     </h3>
                     <div className="space-y-1 text-sm text-muted-foreground">
                       {member.phone && (
@@ -416,6 +537,9 @@ function YerimMemberList() {
                       {member.join_date && (
                         <div>📅 가입: {formatDate(member.join_date)}</div>
                       )}
+                      <div className="font-medium text-primary">
+                        ⭐ 포인트: {memberPoints[member.id] || 0}점
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -443,6 +567,9 @@ function YerimMemberList() {
                     </th>
                     <th className="px-4 py-3 text-left text-sm font-medium">
                       가입일
+                    </th>
+                    <th className="px-4 py-3 text-left text-sm font-medium">
+                      포인트
                     </th>
                     <th className="px-4 py-3 text-left text-sm font-medium">
                       작업
@@ -478,6 +605,11 @@ function YerimMemberList() {
                           className="hover:text-primary hover:underline transition-colors"
                         >
                           {member.name || "이름 없음"}
+                          {isTeacherInNonChoir(member) && (
+                            <span className="ml-2 text-sm text-primary font-normal">
+                              교사
+                            </span>
+                          )}
                         </Link>
                       </td>
                       <td className="px-4 py-3 text-sm">
@@ -488,6 +620,9 @@ function YerimMemberList() {
                       </td>
                       <td className="px-4 py-3 text-sm">
                         {formatDate(member.join_date)}
+                      </td>
+                      <td className="px-4 py-3 text-sm font-medium text-primary">
+                        {memberPoints[member.id] || 0}점
                       </td>
                       <td className="px-4 py-3">
                         <button
@@ -543,6 +678,11 @@ function YerimMemberList() {
                     <div className="flex-1">
                       <h3 className="font-semibold text-lg">
                         {member.name || "이름 없음"}
+                        {isTeacherInNonChoir(member) && (
+                          <span className="ml-2 text-sm text-primary font-normal">
+                            교사
+                          </span>
+                        )}
                       </h3>
                     </div>
                   </Link>
@@ -567,6 +707,7 @@ function YerimMemberList() {
                                 👤 직분: {formatPosition(ms.position, ms.grade)}
                               </div>
                             )}
+                            {ms.class && <div>📚 반: {ms.class}반</div>}
                             {ms.leader && <div>⭐ 리더: {ms.leader}</div>}
                           </div>
                           <div className="mt-2 flex justify-end">
@@ -665,6 +806,11 @@ function YerimMemberList() {
                               className="hover:text-primary hover:underline transition-colors"
                             >
                               {member.name || "이름 없음"}
+                              {isTeacherInNonChoir(member) && (
+                                <span className="ml-2 text-sm text-primary font-normal">
+                                  교사
+                                </span>
+                              )}
                             </Link>
                           </td>
                           <td
@@ -713,6 +859,11 @@ function YerimMemberList() {
                                 className="hover:text-primary hover:underline transition-colors"
                               >
                                 {member.name || "이름 없음"}
+                                {isTeacherInNonChoir(member) && (
+                                  <span className="ml-2 text-sm text-primary font-normal">
+                                    교사
+                                  </span>
+                                )}
                               </Link>
                             </td>
                           </>
@@ -730,13 +881,21 @@ function YerimMemberList() {
                           {ms.leader || "-"}
                         </td>
                         <td className="px-4 py-3 text-sm">
-                          {/* 학년은 직분에 포함되므로 별도로 표시하지 않음 */}
+                          {/* 학생일 경우 학년과 반 표시, 교사일 경우 반 표시 */}
                           {ms.position &&
-                          !["중학생", "고등학생", "대학생"].includes(
+                          ["중학생", "고등학생", "대학생"].includes(
                             ms.position
                           ) &&
                           ms.grade
-                            ? `${ms.grade}학년`
+                            ? `${ms.grade}학년${
+                                ms.class ? ` / ${ms.class}반` : ""
+                              }`
+                            : ms.leader === "교사" && (ms.grade || ms.class)
+                            ? `${ms.grade ? `${ms.grade}학년` : ""}${
+                                ms.grade && ms.class ? " / " : ""
+                              }${ms.class ? `${ms.class}반` : ""}`
+                            : ms.class
+                            ? `${ms.class}반`
                             : "-"}
                         </td>
                         <td className="px-4 py-3">
@@ -931,6 +1090,32 @@ function YerimMemberList() {
                       ));
                     })()}
                   </div>
+                </div>
+              )}
+
+              {/* 반 입력 - 학생일 경우만 표시 */}
+              {(joinFormData.position === "초등학교" ||
+                joinFormData.position === "중학생" ||
+                joinFormData.position === "고등학생" ||
+                joinFormData.position === "대학생") && (
+                <div>
+                  <label className="block text-sm font-medium mb-2">
+                    반 (선택사항)
+                  </label>
+                  <input
+                    type="number"
+                    min="1"
+                    max="20"
+                    value={joinFormData.class}
+                    onChange={(e) =>
+                      setJoinFormData({
+                        ...joinFormData,
+                        class: e.target.value,
+                      })
+                    }
+                    className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
+                    placeholder="반 번호를 입력하세요 (예: 1, 2, 3...)"
+                  />
                 </div>
               )}
 

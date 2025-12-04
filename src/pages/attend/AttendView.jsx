@@ -308,13 +308,12 @@ function AttendView() {
                   <th className="text-left p-2 font-semibold sticky left-0 bg-muted z-10">
                     이름
                   </th>
-                  {attendanceDates.map((day) => (
+                  {monthDays.map((day) => (
                     <th
                       key={format(day, "yyyy-MM-dd")}
                       className="text-center p-2 font-semibold min-w-[40px]"
-                      title={format(day, "yyyy-MM-dd")}
                     >
-                      {format(day, "M/d")}
+                      {format(day, "d")}
                     </th>
                   ))}
                   <th className="text-center p-2 font-semibold bg-muted">
@@ -340,7 +339,7 @@ function AttendView() {
                       지각: 0,
                     };
 
-                    attendanceDates.forEach((day) => {
+                    monthDays.forEach((day) => {
                       const rounds = getAttendanceStatusByRound(memberId, day);
                       Object.values(rounds).forEach((status) => {
                         if (status && memberStats[status] !== undefined) {
@@ -357,7 +356,7 @@ function AttendView() {
                         <td className="p-2 font-medium sticky left-0 bg-background z-10">
                           {memberData.memberName}
                         </td>
-                        {attendanceDates.map((day) => {
+                        {monthDays.map((day) => {
                           const rounds = getAttendanceStatusByRound(
                             memberId,
                             day

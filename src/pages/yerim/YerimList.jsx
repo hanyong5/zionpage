@@ -51,8 +51,10 @@ function YerimList() {
               membershipPart: selectedYearMembership.part || null,
               is_active: selectedYearMembership.is_active !== false,
               grade: selectedYearMembership.grade || null,
+              class: selectedYearMembership.class || null,
               year: selectedYearMembership.year || null,
               position: selectedYearMembership.position || null,
+              leader: selectedYearMembership.leader || null,
               membershipId: selectedYearMembership.id || null, // 선택된 년도의 membership id
               ministryName: selectedYearMembership.ministry?.name || null,
             };
@@ -358,7 +360,193 @@ function YerimList() {
     );
   }
 
-  // 성가대가 아닌 경우 리스트 레이아웃으로 표시
+  // 중고등부인 경우 학년과 반별로 구분하여 표시
+  if (isStudentMinistry) {
+    const activeMembers = getActiveMembers();
+
+    // 학년별로 그룹화
+    const membersByGrade = activeMembers.reduce((acc, member) => {
+      const grade = member.grade || "기타";
+      if (!acc[grade]) {
+        acc[grade] = [];
+      }
+      acc[grade].push(member);
+      return acc;
+    }, {});
+
+    // 학년별로 정렬 (1학년, 2학년, 3학년 순서)
+    const sortedGrades = Object.keys(membersByGrade).sort((a, b) => {
+      if (a === "기타") return 1;
+      if (b === "기타") return -1;
+      return parseInt(a) - parseInt(b);
+    });
+
+    return (
+      <div className="p-6">
+        <div className="flex justify-between items-center mb-6">
+          <div className="flex items-center gap-4">
+            <h2 className="text-3xl font-bold">{ministryCode} - 멤버 리스트</h2>
+            <div className="flex gap-2">
+              <button
+                onClick={() => setSelectedYear(currentYear)}
+                className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+                  selectedYear === currentYear
+                    ? "bg-primary text-primary-foreground"
+                    : "bg-muted text-muted-foreground hover:bg-muted/80"
+                }`}
+              >
+                {currentYear}년
+              </button>
+              <button
+                onClick={() => setSelectedYear(nextYear)}
+                className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+                  selectedYear === nextYear
+                    ? "bg-primary text-primary-foreground"
+                    : "bg-muted text-muted-foreground hover:bg-muted/80"
+                }`}
+              >
+                {nextYear}년
+              </button>
+            </div>
+          </div>
+          <Link
+            to={`/yerim/write?code=${ministryCode}`}
+            className="px-4 py-2 bg-primary text-primary-foreground rounded-lg font-medium hover:bg-primary/90 transition-colors"
+          >
+            멤버 추가
+          </Link>
+        </div>
+
+        {/* 학년별로 표시 */}
+        {sortedGrades.length > 0 ? (
+          <div className="space-y-8">
+            {sortedGrades.map((grade) => {
+              const gradeMembers = membersByGrade[grade];
+
+              // 반별로 그룹화
+              const membersByClass = gradeMembers.reduce((acc, member) => {
+                const classNum = member.class || "기타";
+                if (!acc[classNum]) {
+                  acc[classNum] = [];
+                }
+                acc[classNum].push(member);
+                return acc;
+              }, {});
+
+              // 반별로 정렬 (1반, 2반, 3반 순서)
+              const sortedClasses = Object.keys(membersByClass).sort((a, b) => {
+                if (a === "기타") return 1;
+                if (b === "기타") return -1;
+                return parseInt(a) - parseInt(b);
+              });
+
+              // position에 따라 학년 표시 형식 결정
+              const firstMember = gradeMembers[0];
+              const position = firstMember?.position || "";
+              let gradeTitle = "";
+
+              if (grade === "기타") {
+                gradeTitle = "기타";
+              } else if (position === "중학생") {
+                gradeTitle = `중학교 ${grade}학년`;
+              } else if (position === "고등학생") {
+                gradeTitle = `고등학교 ${grade}학년`;
+              } else {
+                gradeTitle = `${grade}학년`;
+              }
+
+              return (
+                <div key={grade} className="space-y-4">
+                  <h3 className="text-2xl font-bold">{gradeTitle}</h3>
+
+                  {/* 반별로 카드 표시 */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {sortedClasses.map((classNum) => {
+                      const classMembers = membersByClass[classNum];
+
+                      // 교사를 첫 번째로 정렬
+                      const sortedClassMembers = [...classMembers].sort(
+                        (a, b) => {
+                          const aIsTeacher = a.leader === "교사";
+                          const bIsTeacher = b.leader === "교사";
+                          if (aIsTeacher && !bIsTeacher) return -1;
+                          if (!aIsTeacher && bIsTeacher) return 1;
+                          return 0;
+                        }
+                      );
+
+                      return (
+                        <div
+                          key={classNum}
+                          className="border rounded-lg p-4 bg-card shadow-sm"
+                        >
+                          <h4 className="text-lg font-semibold mb-4 pb-2 border-b">
+                            {classNum === "기타" ? "기타" : `${classNum}반`}
+                          </h4>
+                          <div className="grid grid-cols-3 gap-3">
+                            {sortedClassMembers.length > 0 ? (
+                              sortedClassMembers.map((member) => (
+                                <div
+                                  key={member.id}
+                                  className="flex flex-col items-center text-center"
+                                >
+                                  <div className="mb-2">
+                                    {member.photo ? (
+                                      <img
+                                        src={member.photo}
+                                        alt={member.name}
+                                        className="w-[60px] h-[60px] rounded-full object-cover"
+                                      />
+                                    ) : (
+                                      <div className="w-[60px] h-[60px] rounded-full bg-gray-300 flex items-center justify-center text-xl font-semibold text-gray-700">
+                                        {member.name ? member.name[0] : "?"}
+                                      </div>
+                                    )}
+                                  </div>
+                                  <div className="font-medium text-sm mb-1">
+                                    {member.name || "이름 없음"}
+                                    {member.leader === "교사" && (
+                                      <span className="ml-1 text-xs text-primary">
+                                        /교사
+                                      </span>
+                                    )}
+                                  </div>
+                                  <Link
+                                    to={`/yerim/modify/${
+                                      member.id
+                                    }?code=${ministryCode}&year=${
+                                      member.year || selectedYear
+                                    }`}
+                                    className="text-xs text-primary hover:text-primary/80 hover:underline transition-colors mt-1"
+                                  >
+                                    수정
+                                  </Link>
+                                </div>
+                              ))
+                            ) : (
+                              <div className="col-span-3 text-muted-foreground text-sm text-center py-4">
+                                멤버가 없습니다
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        ) : (
+          <div className="text-center text-muted-foreground py-8">
+            멤버가 없습니다
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // 성가대가 아니고 중고등부도 아닌 경우 리스트 레이아웃으로 표시
   if (!isChoir) {
     const activeMembers = getActiveMembers();
     return (
@@ -450,7 +638,13 @@ function YerimList() {
                     </td>
                     <td className="px-4 py-3 font-medium">
                       {member.name || "이름 없음"}
+                      {member.leader === "교사" && (
+                        <span className="ml-2 text-sm font-normal bg-pink-300 text-secondary-foreground rounded px-2 py-1">
+                          교사
+                        </span>
+                      )}
                     </td>
+
                     <td className="px-4 py-3 text-sm">
                       {member.grade ? `${member.grade}학년` : "-"}
                     </td>
