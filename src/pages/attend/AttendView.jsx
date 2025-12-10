@@ -39,14 +39,23 @@ function AttendView() {
     const dateSet = new Set();
     attendances.forEach((attendance) => {
       if (!selectedMinistry || attendance.ministryName === selectedMinistry) {
-        dateSet.add(attendance.attendance_date);
+        // attendance_date가 문자열이면 그대로 사용, Date 객체면 포맷팅
+        const dateStr =
+          typeof attendance.attendance_date === "string"
+            ? attendance.attendance_date
+            : format(new Date(attendance.attendance_date), "yyyy-MM-dd");
+        dateSet.add(dateStr);
       }
     });
 
     // 날짜를 정렬하여 반환 (Date 객체로 변환)
     return Array.from(dateSet)
       .sort()
-      .map((dateString) => new Date(dateString));
+      .map((dateString) => {
+        // 날짜 문자열을 Date 객체로 변환
+        const [year, month, day] = dateString.split("-");
+        return new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
+      });
   }, [attendances, selectedMinistry]);
 
   // 출석부 데이터 가져오기 함수
@@ -308,7 +317,7 @@ function AttendView() {
                   <th className="text-left p-2 font-semibold sticky left-0 bg-muted z-10">
                     이름
                   </th>
-                  {monthDays.map((day) => (
+                  {attendanceDates.map((day) => (
                     <th
                       key={format(day, "yyyy-MM-dd")}
                       className="text-center p-2 font-semibold min-w-[40px]"
@@ -339,7 +348,7 @@ function AttendView() {
                       지각: 0,
                     };
 
-                    monthDays.forEach((day) => {
+                    attendanceDates.forEach((day) => {
                       const rounds = getAttendanceStatusByRound(memberId, day);
                       Object.values(rounds).forEach((status) => {
                         if (status && memberStats[status] !== undefined) {
@@ -356,7 +365,7 @@ function AttendView() {
                         <td className="p-2 font-medium sticky left-0 bg-background z-10">
                           {memberData.memberName}
                         </td>
-                        {monthDays.map((day) => {
+                        {attendanceDates.map((day) => {
                           const rounds = getAttendanceStatusByRound(
                             memberId,
                             day
@@ -377,7 +386,7 @@ function AttendView() {
                               key={format(day, "yyyy-MM-dd")}
                               className="text-center p-1"
                             >
-                              <div className="flex flex-col gap-0.5 items-center">
+                              <div className="flex flex-row gap-1 items-center justify-center flex-wrap">
                                 {roundKeys.map((round) => {
                                   const status = rounds[round];
                                   const bgColor =
@@ -398,16 +407,16 @@ function AttendView() {
                                       : "";
 
                                   return (
-                                    <div
+                                    <span
                                       key={round}
-                                      className={`${bgColor} rounded px-1 text-xs w-full`}
+                                      className={`${bgColor} rounded px-1 text-xs whitespace-nowrap`}
                                       title={`Round ${round}`}
                                     >
                                       <span className="text-[10px] text-gray-600">
                                         {round}
                                       </span>
                                       <span className="ml-0.5">{symbol}</span>
-                                    </div>
+                                    </span>
                                   );
                                 })}
                               </div>
