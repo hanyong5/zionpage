@@ -268,7 +268,12 @@ function YerimWrite() {
     try {
       const result = await addMember(formData);
       if (result.success) {
-        navigate(`/yerim?code=${contextMinistryCode || ""}`);
+        // code 파라미터 유지 (codeFromUrl 우선, 없으면 contextMinistryCode)
+        const codeToUse = codeFromUrl || contextMinistryCode || "";
+        const codeParam = codeToUse
+          ? `?code=${encodeURIComponent(codeToUse)}`
+          : "";
+        navigate(`/yerim${codeParam}`);
       } else {
         setError(result.error || "멤버 추가에 실패했습니다.");
       }
@@ -282,7 +287,7 @@ function YerimWrite() {
   return (
     <div className="p-6 max-w-2xl mx-auto">
       <h2 className="text-3xl font-bold mb-6">
-        {contextMinistryCode || ""} - 멤버 추가하기
+        {codeFromUrl || contextMinistryCode || ""} - 멤버 추가하기
       </h2>
 
       <form onSubmit={handleSubmit} className="space-y-6">
@@ -604,7 +609,14 @@ function YerimWrite() {
           </button>
           <button
             type="button"
-            onClick={() => navigate(`/yerim?code=${contextMinistryCode || ""}`)}
+            onClick={() => {
+              // code 파라미터 유지 (codeFromUrl 우선, 없으면 contextMinistryCode)
+              const codeToUse = codeFromUrl || contextMinistryCode || "";
+              const codeParam = codeToUse
+                ? `?code=${encodeURIComponent(codeToUse)}`
+                : "";
+              navigate(`/yerim${codeParam}`);
+            }}
             className="px-6 py-3 border rounded-lg font-medium hover:bg-accent transition-colors"
           >
             취소

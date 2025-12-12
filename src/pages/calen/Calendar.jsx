@@ -14,6 +14,7 @@ function Calendar() {
   const { events, holidays, songs, loading } = useCalen();
   const [activeTabs, setActiveTabs] = useState({}); // 각 찬양별 탭 상태 관리
   const [ministryId, setMinistryId] = useState(null);
+  const [birthdays, setBirthdays] = useState([]); // 생일자 데이터
 
   // URL 쿼리 파라미터에서 code 가져오기
   const code = searchParams.get("code");
@@ -52,6 +53,60 @@ function Calendar() {
 
     fetchMinistryId();
   }, [code]);
+
+  // 생일자 데이터 가져오기 (code에 따라 필터링)
+  useEffect(() => {
+    const fetchBirthdays = async () => {
+      try {
+        let query = supabase.from("members").select("id, name, birth");
+
+        // code가 있고 ministryId가 있으면 필터링
+        if (code && ministryId) {
+          // membership 테이블을 통해 ministry_id로 필터링
+          const { data: membershipData, error: membershipError } =
+            await supabase
+              .from("membership")
+              .select("member_id")
+              .eq("ministry_id", ministryId)
+              .eq("is_active", true);
+
+          if (membershipError) {
+            console.error("멤버십 조회 오류:", membershipError);
+            setBirthdays([]);
+            return;
+          }
+
+          if (membershipData && membershipData.length > 0) {
+            const memberIds = membershipData.map((m) => m.member_id);
+            query = query.in("id", memberIds);
+          } else {
+            setBirthdays([]);
+            return;
+          }
+        }
+
+        const { data, error } = await query;
+
+        if (error) {
+          console.error("생일자 조회 오류:", error);
+          setBirthdays([]);
+          return;
+        }
+
+        // birth 필드가 있는 멤버만 필터링
+        const membersWithBirth = (data || []).filter((member) => member.birth);
+        setBirthdays(membersWithBirth);
+      } catch (err) {
+        console.error("생일자 조회 중 오류:", err);
+        setBirthdays([]);
+      }
+    };
+
+    // code가 있고 ministryId가 있을 때만 조회 (code가 없으면 전체 조회)
+    if (!code || ministryId !== null) {
+      fetchBirthdays();
+    }
+  }, [code, ministryId]);
 
   // 선택한 날짜의 행사일정 가져오기
   const selectedDateEvents = useMemo(() => {
@@ -147,12 +202,45 @@ function Calendar() {
     return songsMap;
   }, [filteredSongs]);
 
+  // 생일자를 날짜별로 매핑 (월/일 기준, 매년 반복)
+  const birthdaysByDate = useMemo(() => {
+    const birthdaysMap = {};
+    birthdays.forEach((member) => {
+      if (!member.birth) return;
+      const birthDate = new Date(member.birth);
+      const month = birthDate.getMonth() + 1;
+      const day = birthDate.getDate();
+      // MM-DD 형식의 키 사용 (매년 반복)
+      const dateKey = `${String(month).padStart(2, "0")}-${String(day).padStart(
+        2,
+        "0"
+      )}`;
+      if (!birthdaysMap[dateKey]) {
+        birthdaysMap[dateKey] = [];
+      }
+      birthdaysMap[dateKey].push(member);
+    });
+    return birthdaysMap;
+  }, [birthdays]);
+
+  // 선택한 날짜의 생일자 가져오기
+  const selectedDateBirthdays = useMemo(() => {
+    if (!date) return [];
+    const month = date.getMonth() + 1;
+    const day = date.getDate();
+    const dateKey = `${String(month).padStart(2, "0")}-${String(day).padStart(
+      2,
+      "0"
+    )}`;
+    return birthdaysByDate[dateKey] || [];
+  }, [date, birthdaysByDate]);
+
   return (
     <div className="p-3 sm:p-4 md:p-6 min-h-screen">
       <Card className="max-w-full sm:max-w-2xl md:max-w-4xl lg:max-w-6xl xl:max-w-7xl 2xl:max-w-full mx-auto">
         <CardHeader className="p-4 sm:p-6">
           <CardTitle className="text-xl sm:text-2xl md:text-3xl font-bold text-center">
-            성가대일정{code && ` - ${code}`}
+            {`${code}`} 일정
           </CardTitle>
         </CardHeader>
         <CardContent>
@@ -170,6 +258,7 @@ function Calendar() {
                 holidayDates={holidayDates}
                 holidayNames={holidayNames}
                 songsByDate={songsByDate}
+                birthdaysByDate={birthdaysByDate}
                 className="w-full"
               />
             </div>
@@ -211,8 +300,30 @@ function Calendar() {
             </div>
           )}
 
+          {/* 선택한 날짜의 생일자 표시 */}
+          {selectedDateBirthdays.length > 0 && (
+            <div className="mt-4 sm:mt-6 md:mt-8 border-t pt-4 sm:pt-6">
+              <h3 className="text-lg sm:text-xl font-semibold mb-3 sm:mb-4">
+                {format(date, "yyyy년 MM월 dd일", { locale: ko })} 생일자
+              </h3>
+              <div className="space-y-2 sm:space-y-3">
+                {selectedDateBirthdays.map((member) => (
+                  <div
+                    key={member.id}
+                    className="p-3 sm:p-4 bg-pink-50 dark:bg-pink-900/20 rounded-lg border-l-4 border-pink-500"
+                  >
+                    <div className="font-semibold text-lg sm:text-xl md:text-2xl text-pink-700 dark:text-pink-300">
+                      🎂 {member.name}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           {selectedDateEvents.length === 0 &&
             selectedDateSongs.length === 0 &&
+            selectedDateBirthdays.length === 0 &&
             date && (
               <div className="mt-4 sm:mt-6 md:mt-8 border-t pt-4 sm:pt-6 text-center text-sm sm:text-base text-muted-foreground">
                 선택한 날짜에 행사일정이 없습니다.
@@ -221,9 +332,11 @@ function Calendar() {
 
           {/* 선택한 날짜의 찬양 표시 */}
           {selectedDateSongs.length > 0 && (
-            <div className="mt-4 sm:mt-6 md:mt-8 border-t pt-4 sm:pt-6">
+            <div className="mt-4 sm:mt-6 md:mt-8 border-t pt-4 sm:pt-6 p-6">
               <h3 className="text-xl sm:text-2xl md:text-3xl font-semibold mb-4 sm:mb-6">
-                {format(date, "yyyy년 MM월 dd일", { locale: ko })} 찬양
+                {format(date, "yyyy년 MM월 dd일", { locale: ko })}
+                {/* "시온" 또는 "예루살롐" 성가대(ministry_id === 2 또는 1)의 경우 "찬양"이 아니라 "일정"으로 제목을 변경 */}
+                {ministryId === 2 || ministryId === 1 ? "찬양" : "일정"}
               </h3>
               <div className="space-y-4">
                 {selectedDateSongs.map((song) => {
@@ -338,6 +451,31 @@ function Calendar() {
                             선택한 탭에 링크가 없습니다.
                           </div>
                         )}
+                      </div>
+                    );
+                  }
+
+                  // type이 "text"인 경우
+                  if (song.type === "text" && song.text) {
+                    return (
+                      <div
+                        key={song.id}
+                        className="border rounded-lg p-4 bg-card"
+                      >
+                        <div className="flex items-center justify-between mb-3">
+                          <h4 className="font-semibold text-lg sm:text-xl md:text-2xl">
+                            {song.title || "제목 없음"}
+                          </h4>
+                          <Link
+                            to={`/calen/view/${song.id}`}
+                            className="px-3 py-1 text-sm bg-primary text-primary-foreground rounded-md hover:bg-primary/90 transition-colors"
+                          >
+                            전체보기
+                          </Link>
+                        </div>
+                        <div className="mt-4 p-4 bg-muted/50 rounded-lg whitespace-pre-wrap text-sm sm:text-base">
+                          {song.text}
+                        </div>
                       </div>
                     );
                   }

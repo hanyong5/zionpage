@@ -13,9 +13,20 @@ function CalendarComp() {
       <div className="container mx-auto">
         <div className="flex items-center p-4">
           <div className="flex gap-4">
-            <Link to="/calen/calendar">Calendar</Link>
-            <Link to="/calen/list">List</Link>
-            <Link to="/calen/write">Write</Link>
+            {(() => {
+              const search = window.location.search;
+              const params = new URLSearchParams(search);
+              const code = params.get("code");
+              const codeQuery = code ? `?code=${encodeURIComponent(code)}` : "";
+
+              return (
+                <>
+                  <Link to={`/calen/calendar${codeQuery}`}>Calendar</Link>
+                  <Link to={`/calen/list${codeQuery}`}>List</Link>
+                  <Link to={`/calen/write${codeQuery}`}>Write</Link>
+                </>
+              );
+            })()}
           </div>
         </div>
         <Routes>

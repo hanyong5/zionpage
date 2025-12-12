@@ -13,6 +13,7 @@ function CustomCalendar({
   holidayDates = [],
   holidayNames = {},
   songsByDate = {},
+  birthdaysByDate = {},
   className,
 }) {
   const [viewDate, setViewDate] = React.useState(currentDate || new Date());
@@ -109,6 +110,20 @@ function CustomCalendar({
       checkDate.getMonth() + 1
     ).padStart(2, "0")}-${String(checkDate.getDate()).padStart(2, "0")}`;
     return songsByDate[dateKey] || [];
+  };
+
+  // 날짜의 생일자 목록 가져오기 (월/일 기준)
+  const getBirthdaysForDate = (day, isCurrentMonth, isPrevMonth) => {
+    // 생일은 매년 반복되므로 월/일만 사용
+    const checkMonth = isPrevMonth
+      ? (month === 0 ? 11 : month - 1) + 1
+      : isCurrentMonth
+      ? month + 1
+      : (month === 11 ? 0 : month + 1) + 1;
+    const dateKey = `${String(checkMonth).padStart(2, "0")}-${String(
+      day
+    ).padStart(2, "0")}`;
+    return birthdaysByDate[dateKey] || [];
   };
 
   // 날짜가 공휴일인지 확인
@@ -256,12 +271,13 @@ function CustomCalendar({
           const holidayName = getHolidayName(day, false, true);
           const dayEvents = getEventsForDate(day, false, true);
           const daySongs = getSongsForDate(day, false, true);
+          const dayBirthdays = getBirthdaysForDate(day, false, true);
           return (
             <div
               key={`prev-${day}`}
               className={cn(
                 "min-h-[4rem] sm:min-h-[5rem] md:min-h-[6rem] lg:min-h-[7rem] xl:min-h-[8rem]  flex flex-col rounded-md border border-border/50 overflow-hidden opacity-50",
-                isSelected && "border-primary border-2"
+                isSelected && "bg-primary"
               )}
             >
               <button
@@ -269,8 +285,8 @@ function CustomCalendar({
                 className={cn(
                   "flex-shrink-0 h-8 w-full sm:h-10 md:h-12 font-bold flex items-center justify-center text-xs sm:text-sm md:text-base relative",
                   "text-muted-foreground hover:bg-accent/50 transition-colors",
-                  isSelected && "bg-primary/20",
-                  isHolidayDay && "text-red-500"
+                  isSelected && "bg-primary text-primary-foreground",
+                  isHolidayDay && !isSelected && "text-red-500"
                 )}
                 title={holidayName || undefined}
               >
@@ -279,7 +295,12 @@ function CustomCalendar({
                   <span className="absolute -top-1 -right-1 w-1.5 h-1.5 bg-red-500 rounded-full" />
                 )}
               </button>
-              <div className="flex-1 p-0.5 sm:p-1 overflow-hidden flex flex-col">
+              <div
+                className={cn(
+                  "flex-1 p-0.5 sm:p-1 overflow-hidden flex flex-col",
+                  isSelected && "bg-primary"
+                )}
+              >
                 {/* 공휴일과 일정 표시 */}
                 {(() => {
                   const eventItems = [];
@@ -311,6 +332,42 @@ function CustomCalendar({
                     </>
                   );
                 })()}
+
+                {/* 생일자 표시 */}
+                {dayBirthdays.length > 0 && (
+                  <div className="flex-1 flex flex-col justify-start mt-1">
+                    {dayBirthdays.slice(0, 2).map((member, idx) => (
+                      <div
+                        key={member.id || idx}
+                        className={cn(
+                          "px-1.5 py-0.5 mb-0.5 rounded font-semibold break-words",
+                          "text-[8px] sm:text-[10px] md:text-xs",
+                          isSelected
+                            ? "bg-pink-500/40 text-pink-100"
+                            : "text-pink-800 dark:text-pink-200",
+                          "min-h-[1.5rem] flex items-center"
+                        )}
+                        title={`🎂 ${member.name}`}
+                      >
+                        <span className="line-clamp-1 leading-tight">
+                          🎂 {member.name}
+                        </span>
+                      </div>
+                    ))}
+                    {dayBirthdays.length > 2 && (
+                      <div
+                        className={cn(
+                          "text-[8px] sm:text-[10px] px-1.5 py-0.5 rounded font-medium",
+                          isSelected
+                            ? "bg-pink-500/40 text-pink-100"
+                            : "text-pink-700 dark:text-pink-300"
+                        )}
+                      >
+                        +{dayBirthdays.length - 2}명
+                      </div>
+                    )}
+                  </div>
+                )}
 
                 {/* 찬양 표시 (3칸 정도 크기) */}
                 {daySongs.length > 0 && (
@@ -354,13 +411,14 @@ function CustomCalendar({
           const holidayName = getHolidayName(day, true, false);
           const dayEvents = getEventsForDate(day, true, false);
           const daySongs = getSongsForDate(day, true, false);
+          const dayBirthdays = getBirthdaysForDate(day, true, false);
 
           return (
             <div
               key={day}
               className={cn(
                 "min-h-[4rem] sm:min-h-[5rem] md:min-h-[6rem] lg:min-h-[7rem] xl:min-h-[8rem] flex flex-col rounded-md border border-border/50 overflow-hidden",
-                isSelected && "border-primary border-2"
+                isSelected && "bg-primary"
               )}
             >
               <button
@@ -390,7 +448,12 @@ function CustomCalendar({
                 )}
               </button>
               {/* 일정 및 공휴일 내용 표시 */}
-              <div className="flex-1 p-0.5 sm:p-1 overflow-hidden flex flex-col">
+              <div
+                className={cn(
+                  "flex-1 p-0.5 sm:p-1 overflow-hidden flex flex-col",
+                  isSelected && "bg-primary"
+                )}
+              >
                 {/* 공휴일과 일정 표시 */}
                 {(() => {
                   const eventItems = [];
@@ -426,6 +489,42 @@ function CustomCalendar({
                     </>
                   );
                 })()}
+
+                {/* 생일자 표시 */}
+                {dayBirthdays.length > 0 && (
+                  <div className="flex-1 flex flex-col justify-start mt-1">
+                    {dayBirthdays.slice(0, 2).map((member, idx) => (
+                      <div
+                        key={member.id || idx}
+                        className={cn(
+                          "px-1.5 py-0.5 mb-0.5 rounded font-semibold break-words",
+                          "text-[8px] sm:text-[10px] md:text-xs",
+                          isSelected
+                            ? "bg-pink-500/40 text-pink-100"
+                            : "text-pink-800 dark:text-pink-200",
+                          "min-h-[1.5rem] flex items-center"
+                        )}
+                        title={`🎂 ${member.name}`}
+                      >
+                        <span className="line-clamp-1 leading-tight">
+                          🎂 {member.name}
+                        </span>
+                      </div>
+                    ))}
+                    {dayBirthdays.length > 2 && (
+                      <div
+                        className={cn(
+                          "text-[8px] sm:text-[10px] px-1.5 py-0.5 rounded font-medium",
+                          isSelected
+                            ? "bg-pink-500/40 text-pink-100"
+                            : "text-pink-700 dark:text-pink-300"
+                        )}
+                      >
+                        +{dayBirthdays.length - 2}명
+                      </div>
+                    )}
+                  </div>
+                )}
 
                 {/* 찬양 표시 (3칸 정도 크기) */}
                 {daySongs.length > 0 && (
@@ -478,12 +577,13 @@ function CustomCalendar({
           const holidayName = getHolidayName(day, false, false);
           const dayEvents = getEventsForDate(day, false, false);
           const daySongs = getSongsForDate(day, false, false);
+          const dayBirthdays = getBirthdaysForDate(day, false, false);
           return (
             <div
               key={`next-${day}`}
               className={cn(
                 "min-h-[4rem] sm:min-h-[5rem] md:min-h-[6rem] lg:min-h-[7rem] xl:min-h-[8rem] flex flex-col rounded-md border border-border/50 overflow-hidden opacity-50",
-                isSelected && "border-primary border-2"
+                isSelected && "bg-primary"
               )}
             >
               <button
@@ -491,8 +591,8 @@ function CustomCalendar({
                 className={cn(
                   "flex-shrink-0 h-8 w-full sm:h-10 md:h-12 flex items-center justify-center text-xs sm:text-sm md:text-base relative",
                   "text-muted-foreground hover:bg-accent/50 transition-colors",
-                  isSelected && "bg-primary/20",
-                  isHolidayDay && "text-red-500"
+                  isSelected && "bg-primary text-primary-foreground",
+                  isHolidayDay && !isSelected && "text-red-500"
                 )}
                 title={holidayName || undefined}
               >
@@ -501,7 +601,12 @@ function CustomCalendar({
                   <span className="absolute -top-1 -right-1 w-1.5 h-1.5 bg-red-500 rounded-full" />
                 )}
               </button>
-              <div className="flex-1 p-0.5 sm:p-1 overflow-hidden flex flex-col">
+              <div
+                className={cn(
+                  "flex-1 p-0.5 sm:p-1 overflow-hidden flex flex-col",
+                  isSelected && "bg-primary"
+                )}
+              >
                 {/* 공휴일과 일정 표시 */}
                 {(() => {
                   const eventItems = [];
@@ -533,6 +638,42 @@ function CustomCalendar({
                     </>
                   );
                 })()}
+
+                {/* 생일자 표시 */}
+                {dayBirthdays.length > 0 && (
+                  <div className="flex-1 flex flex-col justify-start mt-1">
+                    {dayBirthdays.slice(0, 2).map((member, idx) => (
+                      <div
+                        key={member.id || idx}
+                        className={cn(
+                          "px-1.5 py-0.5 mb-0.5 rounded font-semibold break-words",
+                          "text-[8px] sm:text-[10px] md:text-xs",
+                          isSelected
+                            ? "bg-pink-500/40 text-pink-100"
+                            : "text-pink-800 dark:text-pink-200",
+                          "min-h-[1.5rem] flex items-center"
+                        )}
+                        title={`🎂 ${member.name}`}
+                      >
+                        <span className="line-clamp-1 leading-tight">
+                          🎂 {member.name}
+                        </span>
+                      </div>
+                    ))}
+                    {dayBirthdays.length > 2 && (
+                      <div
+                        className={cn(
+                          "text-[8px] sm:text-[10px] px-1.5 py-0.5 rounded font-medium",
+                          isSelected
+                            ? "bg-pink-500/40 text-pink-100"
+                            : "text-pink-700 dark:text-pink-300"
+                        )}
+                      >
+                        +{dayBirthdays.length - 2}명
+                      </div>
+                    )}
+                  </div>
+                )}
 
                 {/* 찬양 표시 (3칸 정도 크기) */}
                 {daySongs.length > 0 && (

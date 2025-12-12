@@ -217,7 +217,7 @@ function AttendCalendar() {
       <Card className="max-w-full sm:max-w-2xl md:max-w-4xl lg:max-w-5xl xl:max-w-6xl mx-auto">
         <CardHeader className="p-4 sm:p-6">
           <CardTitle className="text-xl sm:text-2xl md:text-3xl font-bold text-center">
-            출석용
+            출석부
           </CardTitle>
         </CardHeader>
         <CardContent>

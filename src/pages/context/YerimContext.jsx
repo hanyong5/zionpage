@@ -206,6 +206,9 @@ export const YerimProvider = ({ children }) => {
   };
 
   useEffect(() => {
+    // ministryCode가 변경될 때 이전 데이터 초기화
+    setMembers([]);
+    setLoading(true);
     fetchMembers();
   }, [ministryCode]);
 
@@ -246,7 +249,12 @@ export const YerimProvider = ({ children }) => {
         .single();
 
       if (ministryError) {
-        throw ministryError;
+        console.error("소속 조회 오류:", ministryError);
+        throw new Error(`소속 "${ministryCode}"을(를) 찾을 수 없습니다.`);
+      }
+
+      if (!ministryData || !ministryData.id) {
+        throw new Error(`소속 "${ministryCode}"을(를) 찾을 수 없습니다.`);
       }
 
       // 3. membership 테이블에 관계 추가 (part, grade, year, position, leader, class 포함)

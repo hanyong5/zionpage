@@ -187,11 +187,54 @@ function CalenView() {
     );
   }
 
+  // type이 "text"인 경우
+  if (song.type === "text") {
+    return (
+      <div className="p-3 sm:p-4 md:p-6 min-h-screen">
+        <Card className="max-w-full sm:max-w-2xl md:max-w-4xl lg:max-w-6xl mx-auto">
+          <CardHeader className="p-4 sm:p-6">
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-xl sm:text-2xl md:text-3xl font-bold">
+                {song.title || "제목 없음"}
+              </CardTitle>
+              <button
+                onClick={() => navigate("/calen/list")}
+                className="px-4 py-2 border rounded-lg font-medium hover:bg-accent transition-colors text-sm sm:text-base"
+              >
+                목록으로
+              </button>
+            </div>
+            {song.singdate && (
+              <div className="text-sm text-muted-foreground mt-2">
+                {format(new Date(song.singdate), "yyyy년 MM월 dd일", {
+                  locale: ko,
+                })}
+              </div>
+            )}
+          </CardHeader>
+          <CardContent className="p-4 sm:p-6">
+            {song.text ? (
+              <div className="p-6 bg-muted/50 rounded-lg">
+                <div className="text-base sm:text-lg whitespace-pre-wrap">
+                  {song.text}
+                </div>
+              </div>
+            ) : (
+              <div className="text-center text-muted-foreground py-8">
+                내용이 없습니다.
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
   // type이 없거나 다른 값인 경우
   return (
     <div className="p-6">
       <div className="p-3 bg-destructive/10 text-destructive rounded-lg">
-        타입 정보가 없습니다.
+        지원하지 않는 타입입니다. (타입: {song.type || "없음"})
       </div>
       <button
         onClick={() => navigate("/calen/list")}

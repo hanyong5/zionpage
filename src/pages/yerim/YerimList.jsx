@@ -41,7 +41,17 @@ function YerimList() {
       .map((member) => {
         // 선택된 년도의 membership 정보 찾기
         if (member.allMemberships && member.allMemberships.length > 0) {
-          const selectedYearMembership = member.allMemberships.find(
+          // 현재 부서와 일치하는 membership만 필터링
+          const matchingMemberships = member.allMemberships.filter((m) => {
+            // ministryCode가 있으면 해당 부서의 membership만 선택
+            if (ministryCode) {
+              return m.ministry?.name === ministryCode;
+            }
+            return true; // ministryCode가 없으면 모든 membership 포함
+          });
+
+          // 선택된 년도와 부서가 일치하는 membership 찾기
+          const selectedYearMembership = matchingMemberships.find(
             (m) => m.year === selectedYear
           );
 
@@ -61,6 +71,10 @@ function YerimList() {
           }
         } else if (!member.allMemberships) {
           // allMemberships가 없는 경우 (기존 데이터 호환성)
+          // ministryCode가 있으면 ministryName이 일치하는지 확인
+          if (ministryCode && member.ministryName !== ministryCode) {
+            return null;
+          }
           // year가 선택된 년도와 일치하는지 확인
           if (member.year === selectedYear || !member.year) {
             return member;
@@ -385,7 +399,7 @@ function YerimList() {
       <div className="p-6">
         <div className="flex justify-between items-center mb-6">
           <div className="flex items-center gap-4">
-            <h2 className="text-3xl font-bold">{ministryCode} - 멤버 리스트</h2>
+            <h2 className="text-3xl font-bold">{ministryCode} </h2>
             <div className="flex gap-2">
               <button
                 onClick={() => setSelectedYear(currentYear)}
@@ -692,9 +706,7 @@ function YerimList() {
     <div className="p-6">
       <div className="flex justify-between items-center mb-6">
         <div className="flex items-center gap-4">
-          <h2 className="text-3xl font-bold">
-            {ministryCode} - 파트별 멤버 리스트
-          </h2>
+          <h2 className="text-3xl font-bold">{ministryCode}</h2>
           <div className="flex gap-2">
             <button
               onClick={() => setSelectedYear(currentYear)}
