@@ -290,7 +290,7 @@ export const YerimProvider = ({ children }) => {
 
   const updateMember = async (id, memberData) => {
     try {
-      // part, is_active, ministryCode, grade, year, position, leader, membershipId는 membership 테이블에만 저장
+      // part, is_active, ministryCode, grade, year, position, leader, class, membershipId는 membership 테이블에만 저장
       const {
         part,
         is_active,
@@ -299,6 +299,7 @@ export const YerimProvider = ({ children }) => {
         year,
         position,
         leader,
+        class: classValue,
         membershipId,
         ...memberFields
       } = memberData;
@@ -372,6 +373,7 @@ export const YerimProvider = ({ children }) => {
                 year: yearToUse,
                 position: position || null,
                 leader: leader || null,
+                class: classValue || null,
               })
               .eq("id", newMembership.id);
 
@@ -391,6 +393,7 @@ export const YerimProvider = ({ children }) => {
                   year: yearToUse,
                   position: position || null,
                   leader: leader || null,
+                  class: classValue || null,
                   is_active: is_active !== false,
                 },
               ]);
@@ -410,6 +413,7 @@ export const YerimProvider = ({ children }) => {
               year: year || null,
               position: position || null,
               leader: leader || null,
+              class: classValue || null,
             })
             .eq("id", membershipId);
 
@@ -445,6 +449,7 @@ export const YerimProvider = ({ children }) => {
               year: yearToUse,
               position: position || null,
               leader: leader || null,
+              class: classValue || null,
             })
             .eq("id", existingMembership.id);
 
@@ -464,6 +469,7 @@ export const YerimProvider = ({ children }) => {
                 year: yearToUse,
                 position: position || null,
                 leader: leader || null,
+                class: classValue || null,
                 is_active: is_active !== false,
               },
             ]);

@@ -13,14 +13,17 @@ function YerimComp() {
     <YerimProvider>
       <div>
         {/* <h3 className="text-3xl font-bold mb-6">멤버관리</h3> */}
-        {/* <div className="flex gap-4">
-          <Link to="/yerim?code=시온성가대">Zion</Link>
-          <Link to="/yerim?code=예루살렘성가대">Jerusalem</Link>
+        <div className="flex gap-4">
+          <Link to="/yerim?code=시온성가대">2부</Link>
+          <Link to="/yerim?code=예루살렘성가대">3부</Link>
+
+          <Link to="/yerim?code=초등부">초등부</Link>
+          <Link to="/yerim?code=유년부">유년부</Link>
           <Link to="/yerim?code=중고등부">중고등부</Link>
           <Link to="/yerim/list">List</Link>
           <Link to="/yerim/member-list">Member List</Link>
           <Link to="/yerim/write">Write</Link>
-        </div> */}
+        </div>
       </div>
       <div className="container mx-auto">
         <Routes>

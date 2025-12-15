@@ -117,7 +117,13 @@ function YerimMemberList() {
   const formatPosition = (position, grade) => {
     if (!position) return null;
 
-    const studentPositions = ["중학생", "고등학생", "대학생"];
+    const studentPositions = [
+      "유년부",
+      "초등부",
+      "중학생",
+      "고등학생",
+      "대학생",
+    ];
     if (studentPositions.includes(position) && grade) {
       return `${position}/${grade}학년`;
     }
@@ -294,10 +300,15 @@ function YerimMemberList() {
       }
 
       // 학생일 경우 학년 확인
+      const gradeRequiredPositions = [
+        "유년부",
+        "초등부",
+        "중학생",
+        "고등학생",
+        "대학생",
+      ];
       if (
-        (joinFormData.position === "중학생" ||
-          joinFormData.position === "고등학생" ||
-          joinFormData.position === "대학생") &&
+        gradeRequiredPositions.includes(joinFormData.position) &&
         !joinFormData.grade
       ) {
         setJoinError("학년을 선택해주세요.");
@@ -883,9 +894,13 @@ function YerimMemberList() {
                         <td className="px-4 py-3 text-sm">
                           {/* 학생일 경우 학년과 반 표시, 교사일 경우 반 표시 */}
                           {ms.position &&
-                          ["중학생", "고등학생", "대학생"].includes(
-                            ms.position
-                          ) &&
+                          [
+                            "유년부",
+                            "초등부",
+                            "중학생",
+                            "고등학생",
+                            "대학생",
+                          ].includes(ms.position) &&
                           ms.grade
                             ? `${ms.grade}학년${
                                 ms.class ? ` / ${ms.class}반` : ""
@@ -1048,7 +1063,8 @@ function YerimMemberList() {
 
               {/* 학년 - 학생일 경우만 표시 */}
 
-              {(joinFormData.position === "초등학교" ||
+              {(joinFormData.position === "유년부" ||
+                joinFormData.position === "초등부" ||
                 joinFormData.position === "중학생" ||
                 joinFormData.position === "고등학생" ||
                 joinFormData.position === "대학생") && (
@@ -1059,8 +1075,10 @@ function YerimMemberList() {
                   <div className="flex flex-wrap gap-2">
                     {(() => {
                       let grades = [];
-                      if (joinFormData.position === "초등학교") {
-                        grades = [1, 2, 3, 4, 5, 6];
+                      if (joinFormData.position === "유년부") {
+                        grades = [1, 2, 3]; // 유년부 1~3
+                      } else if (joinFormData.position === "초등부") {
+                        grades = [4, 5, 6]; // 초등부 4~6
                       } else if (
                         joinFormData.position === "중학생" ||
                         joinFormData.position === "고등학생"
@@ -1093,8 +1111,9 @@ function YerimMemberList() {
                 </div>
               )}
 
-              {/* 반 입력 - 학생일 경우만 표시 */}
-              {(joinFormData.position === "초등학교" ||
+              {/* 반 선택 - 학생일 경우만 표시 */}
+              {(joinFormData.position === "유년부" ||
+                joinFormData.position === "초등부" ||
                 joinFormData.position === "중학생" ||
                 joinFormData.position === "고등학생" ||
                 joinFormData.position === "대학생") && (
@@ -1102,20 +1121,40 @@ function YerimMemberList() {
                   <label className="block text-sm font-medium mb-2">
                     반 (선택사항)
                   </label>
-                  <input
-                    type="number"
-                    min="1"
-                    max="20"
-                    value={joinFormData.class}
-                    onChange={(e) =>
-                      setJoinFormData({
-                        ...joinFormData,
-                        class: e.target.value,
-                      })
-                    }
-                    className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
-                    placeholder="반 번호를 입력하세요 (예: 1, 2, 3...)"
-                  />
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setJoinFormData({ ...joinFormData, class: "" })
+                      }
+                      className={`px-4 py-2 rounded-lg border transition-colors text-sm ${
+                        !joinFormData.class
+                          ? "bg-primary text-primary-foreground border-primary"
+                          : "bg-white border-border hover:bg-accent"
+                      }`}
+                    >
+                      없음
+                    </button>
+                    {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((classNum) => (
+                      <button
+                        key={classNum}
+                        type="button"
+                        onClick={() =>
+                          setJoinFormData({
+                            ...joinFormData,
+                            class: classNum.toString(),
+                          })
+                        }
+                        className={`px-4 py-2 rounded-lg border transition-colors text-sm ${
+                          joinFormData.class === classNum.toString()
+                            ? "bg-primary text-primary-foreground border-primary"
+                            : "bg-white border-border hover:bg-accent"
+                        }`}
+                      >
+                        {classNum}반
+                      </button>
+                    ))}
+                  </div>
                 </div>
               )}
 

@@ -15,8 +15,11 @@ function YerimList() {
 
   // 성가대인지 확인
   const isChoir = ministryCode?.includes("성가대");
-  // 중고등부인지 확인
-  const isStudentMinistry = ministryCode === "중고등부";
+  // 중고등부, 초등부, 유년부인지 확인
+  const isStudentMinistry =
+    ministryCode === "중고등부" ||
+    ministryCode === "초등부" ||
+    ministryCode === "유년부";
 
   // code가 없는 경우 전체 회원 리스트 표시
   const isAllMembers = !ministryCode;
@@ -465,6 +468,10 @@ function YerimList() {
                 gradeTitle = `중학교 ${grade}학년`;
               } else if (position === "고등학생") {
                 gradeTitle = `고등학교 ${grade}학년`;
+              } else if (position === "초등부" || ministryCode === "초등부") {
+                gradeTitle = `초등부 ${grade}학년`;
+              } else if (position === "유년부" || ministryCode === "유년부") {
+                gradeTitle = `유년부 ${grade}학년`;
               } else {
                 gradeTitle = `${grade}학년`;
               }

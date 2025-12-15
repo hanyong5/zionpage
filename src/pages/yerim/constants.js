@@ -1,7 +1,8 @@
 export const PARTS = ["SOPRANO", "ALTO", "TENOR", "BASS"];
 
 export const POSITIONS = [
-  "초등학교",
+  "유년부",
+  "초등부",
   "중학생",
   "고등학생",
   "대학생",
