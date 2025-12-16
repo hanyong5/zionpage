@@ -3,6 +3,7 @@ import { Link, useSearchParams } from "react-router-dom";
 import { useYerim } from "../context/YerimContext";
 import supabase from "../../utils/supabase";
 import { LEADERS, PARTS, POSITIONS } from "./constants";
+import { QRCodeSVG } from "qrcode.react";
 
 function YerimMemberList() {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -30,6 +31,8 @@ function YerimMemberList() {
   const [joinError, setJoinError] = useState(null);
   const [deletingMembershipId, setDeletingMembershipId] = useState(null);
   const [memberPoints, setMemberPoints] = useState({}); // member_id -> balance 매핑
+  const [showQRModal, setShowQRModal] = useState(false);
+  const [qrMember, setQrMember] = useState(null);
 
   // 소속 선택 핸들러
   const handleMinistryChange = (ministryCode) => {
@@ -277,6 +280,28 @@ function YerimMemberList() {
     setJoinError(null);
   };
 
+  // QR 코드 모달 열기
+  const handleOpenQRModal = (member) => {
+    setQrMember(member);
+    setShowQRModal(true);
+  };
+
+  // QR 코드 모달 닫기
+  const handleCloseQRModal = () => {
+    setShowQRModal(false);
+    setQrMember(null);
+  };
+
+  // QR 코드 데이터 생성 (이름, 전화번호, 생년월일)
+  const generateQRData = (member) => {
+    const qrData = {
+      name: member.name || "",
+      phone: member.phone || "",
+      birth: member.birth || "",
+    };
+    return JSON.stringify(qrData);
+  };
+
   // 년도별 가입 처리
   const handleJoinMembership = async () => {
     if (!selectedMember) return;
@@ -509,52 +534,70 @@ function YerimMemberList() {
           {/* 기본 정보 탭 - 모바일: 카드 형태 */}
           <div className="md:hidden space-y-4">
             {filteredMembers.map((member) => (
-              <Link
+              <div
                 key={member.id}
-                to={`/yerim/member/${member.id}`}
-                className="block bg-white rounded-lg shadow-md p-4 border hover:shadow-lg transition-shadow"
+                className="bg-white rounded-lg shadow-md p-4 border hover:shadow-lg transition-shadow"
               >
-                <div className="flex items-center gap-4">
-                  {/* 사진 */}
-                  <div className="shrink-0">
-                    {member.photo ? (
-                      <img
-                        src={member.photo}
-                        alt={member.name || "회원 사진"}
-                        className="w-16 h-16 rounded-full object-cover"
-                      />
-                    ) : (
-                      <div className="w-16 h-16 rounded-full bg-gray-300 flex items-center justify-center text-lg font-semibold text-gray-700">
-                        {member.name ? member.name[0] : "?"}
-                      </div>
-                    )}
-                  </div>
+                <Link to={`/yerim/member/${member.id}`}>
+                  <div className="flex items-center gap-4">
+                    {/* 사진 */}
+                    <div className="shrink-0">
+                      {member.photo ? (
+                        <img
+                          src={member.photo}
+                          alt={member.name || "회원 사진"}
+                          className="w-16 h-16 rounded-full object-cover"
+                        />
+                      ) : (
+                        <div className="w-16 h-16 rounded-full bg-gray-300 flex items-center justify-center text-lg font-semibold text-gray-700">
+                          {member.name ? member.name[0] : "?"}
+                        </div>
+                      )}
+                    </div>
 
-                  {/* 정보 */}
-                  <div className="flex-1 min-w-0">
-                    <h3 className="font-semibold text-lg mb-1 truncate">
-                      {member.name || "이름 없음"}
-                      {isTeacherInNonChoir(member) && (
-                        <span className="ml-2 text-sm text-primary font-normal">
-                          교사
-                        </span>
-                      )}
-                    </h3>
-                    <div className="space-y-1 text-sm text-muted-foreground">
-                      {member.phone && (
-                        <div className="truncate">📞 {member.phone}</div>
-                      )}
-                      {member.birth && <div>🎂 {formatDate(member.birth)}</div>}
-                      {member.join_date && (
-                        <div>📅 가입: {formatDate(member.join_date)}</div>
-                      )}
-                      <div className="font-medium text-primary">
-                        ⭐ 포인트: {memberPoints[member.id] || 0}점
+                    {/* 정보 */}
+                    <div className="flex-1 min-w-0">
+                      <h3 className="font-semibold text-lg mb-1 truncate">
+                        {member.name || "이름 없음"}
+                        {isTeacherInNonChoir(member) && (
+                          <span className="ml-2 text-sm text-primary font-normal">
+                            교사
+                          </span>
+                        )}
+                      </h3>
+                      <div className="space-y-1 text-sm text-muted-foreground">
+                        {member.phone && (
+                          <div className="truncate">📞 {member.phone}</div>
+                        )}
+                        {member.birth && (
+                          <div>🎂 {formatDate(member.birth)}</div>
+                        )}
+                        {member.join_date && (
+                          <div>📅 가입: {formatDate(member.join_date)}</div>
+                        )}
+                        <div className="font-medium text-primary">
+                          ⭐ 포인트: {memberPoints[member.id] || 0}점
+                        </div>
                       </div>
                     </div>
                   </div>
+                </Link>
+                {/* 버튼 */}
+                <div className="flex gap-2 mt-3 pt-3 border-t">
+                  <button
+                    onClick={() => handleOpenJoinModal(member)}
+                    className="flex-1 px-3 py-2 text-sm bg-primary text-primary-foreground rounded hover:bg-primary/90 transition-colors"
+                  >
+                    부서가입
+                  </button>
+                  <button
+                    onClick={() => handleOpenQRModal(member)}
+                    className="flex-1 px-3 py-2 text-sm bg-secondary text-secondary-foreground rounded hover:bg-secondary/90 transition-colors"
+                  >
+                    QR코드
+                  </button>
                 </div>
-              </Link>
+              </div>
             ))}
           </div>
 
@@ -636,12 +679,20 @@ function YerimMemberList() {
                         {memberPoints[member.id] || 0}점
                       </td>
                       <td className="px-4 py-3">
-                        <button
-                          onClick={() => handleOpenJoinModal(member)}
-                          className="px-3 py-1 text-sm bg-primary text-primary-foreground rounded hover:bg-primary/90 transition-colors"
-                        >
-                          부서가입
-                        </button>
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => handleOpenJoinModal(member)}
+                            className="px-3 py-1 text-sm bg-primary text-primary-foreground rounded hover:bg-primary/90 transition-colors"
+                          >
+                            부서가입
+                          </button>
+                          <button
+                            onClick={() => handleOpenQRModal(member)}
+                            className="px-3 py-1 text-sm bg-secondary text-secondary-foreground rounded hover:bg-secondary/90 transition-colors"
+                          >
+                            QR코드
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -1219,6 +1270,71 @@ function YerimMemberList() {
                   취소
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* QR 코드 모달 */}
+      {showQRModal && qrMember && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg shadow-lg max-w-md w-full p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-xl font-bold">
+                {qrMember.name || "회원"} - QR 코드
+              </h3>
+              <button
+                onClick={handleCloseQRModal}
+                className="text-muted-foreground hover:text-foreground transition-colors"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="flex flex-col items-center space-y-4">
+              {/* QR 코드 */}
+              <div className="relative p-4 bg-white rounded-lg border-2 border-gray-200 inline-block">
+                <QRCodeSVG
+                  value={generateQRData(qrMember)}
+                  size={256}
+                  level="H"
+                  includeMargin={true}
+                />
+                {/* 중앙에 "예림" 텍스트 오버레이 */}
+                <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                  <div className="bg-white/90 rounded-lg px-4 py-2 border-2 border-gray-300">
+                    <span className="text-2xl font-bold text-gray-800">
+                      예림
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* 회원 정보 */}
+              <div className="w-full space-y-2 text-sm">
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">이름:</span>
+                  <span className="font-medium">{qrMember.name || "-"}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">전화번호:</span>
+                  <span className="font-medium">{qrMember.phone || "-"}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">생년월일:</span>
+                  <span className="font-medium">
+                    {formatDate(qrMember.birth)}
+                  </span>
+                </div>
+              </div>
+
+              {/* 닫기 버튼 */}
+              <button
+                onClick={handleCloseQRModal}
+                className="w-full px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors"
+              >
+                닫기
+              </button>
             </div>
           </div>
         </div>

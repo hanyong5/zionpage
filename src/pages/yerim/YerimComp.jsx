@@ -7,6 +7,7 @@ import YerimModi from "./YerimModi";
 import YerimMember from "./YerimMember";
 import YerimMemberList from "./YerimMemberList";
 import YerimMemberWrite from "./YerimMemberWrite";
+import YerimQr from "./YerimQr";
 
 function YerimComp() {
   return (
@@ -23,6 +24,7 @@ function YerimComp() {
           <Link to="/yerim/list">List</Link>
           <Link to="/yerim/member-list">Member List</Link>
           <Link to="/yerim/write">Write</Link>
+          <Link to="/yerim/qr">QR</Link>
         </div>
       </div>
       <div className="container mx-auto">
@@ -34,6 +36,7 @@ function YerimComp() {
           <Route path="member-list" element={<YerimMemberList />} />
           <Route path="member-write" element={<YerimMemberWrite />} />
           <Route path="member/:id" element={<YerimMember />} />
+          <Route path="qr" element={<YerimQr />} />
         </Routes>
       </div>
     </YerimProvider>
