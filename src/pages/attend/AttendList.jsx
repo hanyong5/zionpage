@@ -5,6 +5,7 @@ import { format } from "date-fns";
 import { ko } from "date-fns/locale/ko";
 import supabase from "../../utils/supabase";
 import { reason, point, source_type } from "../point/pointconst";
+import { REASONS } from "./constants";
 
 function AttendList() {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -687,72 +688,101 @@ function AttendList() {
     );
   }
 
-  return (
-    <div className="p-3 sm:p-4 md:p-6 min-h-screen">
-      <Card className="max-w-full sm:max-w-2xl md:max-w-4xl lg:max-w-6xl mx-auto">
-        <CardHeader className="p-4 sm:p-6">
-          <div className="flex items-center justify-between">
-            <CardTitle className="text-xl sm:text-2xl md:text-3xl font-bold">
-              출석부 리스트
-            </CardTitle>
-            <Link
-              to="/attend/calendar"
-              className="px-4 py-2 bg-secondary text-secondary-foreground rounded-lg font-medium hover:bg-secondary/90 transition-colors text-sm sm:text-base"
-            >
-              달력으로
-            </Link>
-          </div>
-          <div className="mt-2 flex items-center gap-4">
-            <div className="text-base sm:text-lg text-muted-foreground">
-              {format(selectedDate, "yyyy년 MM월 dd일 (EEE)", { locale: ko })}
-            </div>
-            <input
-              type="date"
-              value={dateString}
-              onChange={handleDateChange}
-              className="px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary text-sm"
-            />
-          </div>
-        </CardHeader>
-        <CardContent className="p-4 sm:p-6">
-          {attendances.length === 0 ? (
-            <div className="text-center text-muted-foreground py-8">
-              {format(selectedDate, "yyyy년 MM월 dd일", { locale: ko })}에
-              생성된 출석부가 없습니다.
-            </div>
-          ) : (
-            <div className="space-y-6">
-              {Object.entries(attendancesByMinistry).map(
-                ([ministryName, roundGroups]) => {
-                  // 모든 round의 모든 출석부를 합쳐서 계산
-                  const allAttendances = Object.values(roundGroups).flatMap(
-                    (roundGroup) => {
-                      if (Array.isArray(roundGroup)) {
-                        return roundGroup;
-                      }
-                      return Object.values(roundGroup).flatMap((subGroup) => {
-                        if (Array.isArray(subGroup)) {
-                          return subGroup;
-                        }
-                        return Object.values(subGroup).flat();
-                      });
-                    }
-                  );
-                  // ministryId를 안전하게 가져오기
-                  const ministryId = allAttendances.find(
-                    (a) => a?.ministry_id
-                  )?.ministry_id;
+  // 카운트 계산 헬퍼 함수 (출석인원/총인원)
+  const getCounts = (attendances) => {
+    const total = attendances.length;
+    const attended = attendances.filter((a) => a.status === "출석").length;
+    return { total, attended };
+  };
 
-                  return (
-                    <div
-                      key={ministryName}
-                      className="border rounded-lg p-4 bg-card"
-                    >
-                      {/* 소속 헤더에 출석확정 버튼 추가 */}
-                      <div className="flex items-center justify-between mb-4 pb-3 border-b">
-                        <h2 className="text-xl sm:text-2xl font-bold">
-                          {ministryName}
-                        </h2>
+  return (
+    <div className="p-3 sm:p-4 min-h-screen bg-gray-50">
+      <div className="max-w-full mx-auto">
+        {/* 상단 헤더 */}
+        <div className="mb-4 flex items-center justify-between">
+          <CardTitle className="text-xl sm:text-2xl font-bold">
+            출석부 리스트
+          </CardTitle>
+          <Link
+            to="/attend/calendar"
+            className="px-4 py-2 bg-secondary text-secondary-foreground rounded-lg font-medium hover:bg-secondary/90 transition-colors text-sm"
+          >
+            달력으로
+          </Link>
+        </div>
+        <div className="mb-4 flex items-center gap-4">
+          <div className="text-base text-muted-foreground">
+            {format(selectedDate, "yyyy년 MM월 dd일 (EEE)", { locale: ko })}
+          </div>
+          <input
+            type="date"
+            value={dateString}
+            onChange={handleDateChange}
+            className="px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary text-sm"
+          />
+        </div>
+
+        {attendances.length === 0 ? (
+          <div className="text-center text-muted-foreground py-8 bg-white rounded-lg">
+            {format(selectedDate, "yyyy년 MM월 dd일", { locale: ko })}에 생성된
+            출석부가 없습니다.
+          </div>
+        ) : (
+          <div className="space-y-4">
+            {Object.entries(attendancesByMinistry).map(
+              ([ministryName, roundGroups]) => {
+                // 모든 round의 모든 출석부를 합쳐서 계산
+                const allAttendances = Object.values(roundGroups).flatMap(
+                  (roundGroup) => {
+                    if (Array.isArray(roundGroup)) {
+                      return roundGroup;
+                    }
+                    return Object.values(roundGroup).flatMap((subGroup) => {
+                      if (Array.isArray(subGroup)) {
+                        return subGroup;
+                      }
+                      return Object.values(subGroup).flat();
+                    });
+                  }
+                );
+                // ministryId를 안전하게 가져오기
+                const ministryId = allAttendances.find(
+                  (a) => a?.ministry_id
+                )?.ministry_id;
+                const ministryCounts = getCounts(allAttendances);
+
+                return (
+                  <div
+                    key={ministryName}
+                    className="bg-white rounded-lg border shadow-sm"
+                  >
+                    {/* 부서 헤더 */}
+                    <div className="flex items-center justify-between p-4 border-b">
+                      <div className="flex items-center gap-2">
+                        <h2 className="text-lg font-bold">{ministryName}</h2>
+                        <span className="text-sm text-muted-foreground">
+                          {ministryCounts.attended}/{ministryCounts.total}
+                        </span>
+                      </div>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() =>
+                            handleDeleteMinistryAttendance(
+                              ministryName,
+                              ministryId,
+                              Object.keys(roundGroups)[0] || "1"
+                            )
+                          }
+                          disabled={
+                            deletingMinistry ===
+                            `${ministryName}-${
+                              Object.keys(roundGroups)[0] || "1"
+                            }`
+                          }
+                          className="px-3 py-1.5 text-sm bg-red-600 text-white rounded-md hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium"
+                        >
+                          삭제
+                        </button>
                         <button
                           onClick={() =>
                             handleConfirmAttendance(ministryName, ministryId)
@@ -760,384 +790,367 @@ function AttendList() {
                           disabled={
                             confirmingAttendance === ministryName || !ministryId
                           }
-                          className="px-4 py-2 text-sm bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium"
+                          className="px-3 py-1.5 text-sm bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium"
                         >
                           {confirmingAttendance === ministryName
                             ? "처리 중..."
                             : "출석확정"}
                         </button>
                       </div>
-                      {/* Round별로 섹션 분리 */}
-                      {Object.entries(roundGroups).map(([round, groups]) => {
-                        // 해당 round의 모든 출석부 (이중 그룹화 구조 고려)
-                        const roundAttendances = Object.values(groups).flatMap(
-                          (groupData) => {
-                            // 성가대인 경우: groupData는 배열
-                            // 다른 부서인 경우: groupData는 객체 { "1반": [...], "2반": [...] }
-                            const isChoir =
-                              ministryName === "시온성가대" ||
-                              ministryName === "예루살렘성가대";
-                            if (isChoir || Array.isArray(groupData)) {
-                              return groupData;
-                            } else {
-                              // 학년별 그룹 내의 모든 반의 출석부를 합침
-                              return Object.values(groupData).flat();
-                            }
+                    </div>
+
+                    {/* Round별로 섹션 분리 */}
+                    {Object.entries(roundGroups).map(([round, groups]) => {
+                      // 해당 round의 모든 출석부
+                      const roundAttendances = Object.values(groups).flatMap(
+                        (groupData) => {
+                          const isChoir =
+                            ministryName === "시온성가대" ||
+                            ministryName === "예루살렘성가대";
+                          if (isChoir || Array.isArray(groupData)) {
+                            return groupData;
+                          } else {
+                            return Object.values(groupData).flat();
                           }
-                        );
+                        }
+                      );
 
-                        return (
-                          <div key={round} className="mb-6 last:mb-0">
-                            <div className="flex items-center justify-between mb-4">
-                              <div className="flex items-center gap-3">
-                                <h3 className="text-lg sm:text-xl font-semibold">
-                                  {ministryName} - Round {round}
-                                </h3>
-                                <button
-                                  onClick={() =>
-                                    handleDeleteMinistryAttendance(
-                                      ministryName,
-                                      ministryId,
-                                      round
-                                    )
-                                  }
-                                  disabled={
-                                    deletingMinistry ===
-                                    `${ministryName}-${round}`
-                                  }
-                                  className="px-3 py-1 text-sm bg-destructive text-destructive-foreground rounded-md hover:bg-destructive/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                                >
-                                  {deletingMinistry ===
-                                  `${ministryName}-${round}`
-                                    ? "삭제 중..."
-                                    : "삭제"}
-                                </button>
-                                <button
-                                  onClick={() =>
-                                    handleUpdateAttendance(
-                                      roundAttendances,
-                                      "출석"
-                                    )
-                                  }
-                                  disabled={updating || selectedIds.size === 0}
-                                  className="px-4 py-1 text-sm bg-green-600 text-white rounded-md hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                                >
-                                  {updating ? "업중..." : "출석"}
-                                </button>
-                                <button
-                                  onClick={() =>
-                                    handleUpdateAttendance(
-                                      roundAttendances,
-                                      "결석"
-                                    )
-                                  }
-                                  disabled={updating || selectedIds.size === 0}
-                                  className="px-4 py-1 text-sm bg-red-600 text-white rounded-md hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                                >
-                                  {updating ? "업중..." : "결석"}
-                                </button>
-                                <button
-                                  onClick={() =>
-                                    handleUpdateAttendance(
-                                      roundAttendances,
-                                      "지각"
-                                    )
-                                  }
-                                  disabled={updating || selectedIds.size === 0}
-                                  className="px-4 py-1 text-sm bg-yellow-600 text-white rounded-md hover:bg-yellow-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                                >
-                                  {updating ? "업중..." : "지각"}
-                                </button>
-                              </div>
-                              <div className="text-sm text-muted-foreground">
-                                총 {roundAttendances.length}명 / 선택{" "}
-                                {
-                                  Array.from(selectedIds).filter((id) =>
-                                    roundAttendances.some((a) => a.id === id)
-                                  ).length
-                                }
-                                명
-                              </div>
+                      return (
+                        <div key={round} className="p-4">
+                          {/* Round 및 출석 상태 버튼 */}
+                          <div className="mb-4">
+                            <div className="mb-3">
+                              <span className="text-base font-semibold">
+                                Round {round}
+                              </span>
                             </div>
-
-                            {/* 파트별/학년별로 테이블 표시 */}
-                            <div className="space-y-4">
-                              {Object.entries(groups).map(
-                                ([groupName, groupData]) => {
-                                  // 성가대인 경우: groupData는 배열
-                                  // 다른 부서인 경우: groupData는 객체 { "1반": [...], "2반": [...] }
-                                  const isChoir =
-                                    ministryName === "시온성가대" ||
-                                    ministryName === "예루살렘성가대";
-
-                                  if (isChoir || Array.isArray(groupData)) {
-                                    // 성가대: 파트별로 직접 표시
-                                    const groupAttendances = groupData;
-                                    return (
-                                      <div
-                                        key={groupName}
-                                        className="border rounded-lg p-3 bg-muted/30"
-                                      >
-                                        <h4 className="text-base font-semibold mb-2 pb-2 border-b">
-                                          {groupName}
-                                        </h4>
-                                        <div className="overflow-x-auto">
-                                          <table className="w-full border-collapse">
-                                            <thead>
-                                              <tr className="border-b">
-                                                <th className="text-center p-2 text-sm font-semibold w-12">
-                                                  <input
-                                                    type="checkbox"
-                                                    checked={groupAttendances.every(
-                                                      (a) =>
-                                                        selectedIds.has(a.id)
-                                                    )}
-                                                    onChange={() =>
-                                                      handleSelectAll(
-                                                        groupAttendances
-                                                      )
-                                                    }
-                                                    className="cursor-pointer"
-                                                  />
-                                                </th>
-                                                <th className="text-left p-2 text-sm font-semibold">
-                                                  이름
-                                                </th>
-                                                <th className="text-left p-2 text-sm font-semibold">
-                                                  전화번호
-                                                </th>
-                                                <th className="text-left p-2 text-sm font-semibold">
-                                                  상태
-                                                </th>
-                                                <th className="text-left p-2 text-sm font-semibold">
-                                                  메모
-                                                </th>
-                                              </tr>
-                                            </thead>
-                                            <tbody>
-                                              {groupAttendances.map(
-                                                (attendance) => (
-                                                  <tr
-                                                    key={attendance.id}
-                                                    className="border-b hover:bg-muted/50"
-                                                  >
-                                                    <td className="p-2 text-center">
-                                                      <input
-                                                        type="checkbox"
-                                                        checked={selectedIds.has(
-                                                          attendance.id
-                                                        )}
-                                                        onChange={() =>
-                                                          handleToggleCheck(
-                                                            attendance.id
-                                                          )
-                                                        }
-                                                        className="cursor-pointer"
-                                                      />
-                                                    </td>
-                                                    <td className="p-2">
-                                                      {attendance.memberName}
-                                                    </td>
-                                                    <td className="p-2 text-sm text-muted-foreground">
-                                                      {attendance.memberPhone ||
-                                                        "-"}
-                                                    </td>
-                                                    <td className="p-2">
-                                                      <span
-                                                        className={`px-2 py-1 rounded text-xs font-medium ${
-                                                          attendance.status ===
-                                                          "출석"
-                                                            ? "bg-green-100 text-green-800"
-                                                            : attendance.status ===
-                                                              "결석"
-                                                            ? "bg-red-100 text-red-800"
-                                                            : attendance.status ===
-                                                              "지각"
-                                                            ? "bg-yellow-100 text-yellow-800"
-                                                            : "bg-gray-100 text-gray-800"
-                                                        }`}
-                                                      >
-                                                        {attendance.status ||
-                                                          "미입력"}
-                                                      </span>
-                                                    </td>
-                                                    <td className="p-2">
-                                                      <input
-                                                        type="text"
-                                                        value={
-                                                          memos[
-                                                            attendance.id
-                                                          ] || ""
-                                                        }
-                                                        onChange={(e) =>
-                                                          handleMemoChange(
-                                                            attendance.id,
-                                                            e.target.value
-                                                          )
-                                                        }
-                                                        placeholder="메모 입력"
-                                                        className="w-full px-2 py-1 text-sm border rounded focus:outline-none focus:ring-2 focus:ring-primary"
-                                                      />
-                                                    </td>
-                                                  </tr>
-                                                )
-                                              )}
-                                            </tbody>
-                                          </table>
-                                        </div>
-                                      </div>
-                                    );
-                                  } else {
-                                    // 다른 부서: 학년별로 그룹화하고, 각 학년 내에서 반별로 표시
-                                    return (
-                                      <div
-                                        key={groupName}
-                                        className="border rounded-lg p-4 bg-muted/30"
-                                      >
-                                        <h4 className="text-lg font-semibold mb-3 pb-2 border-b">
-                                          {groupName}
-                                        </h4>
-                                        <div className="space-y-3">
-                                          {Object.entries(groupData).map(
-                                            ([className, classAttendances]) => (
-                                              <div
-                                                key={className}
-                                                className="border rounded-lg p-3 bg-background"
-                                              >
-                                                <h5 className="text-base font-medium mb-2 pb-1 border-b">
-                                                  {className}
-                                                </h5>
-                                                <div className="overflow-x-auto">
-                                                  <table className="w-full border-collapse">
-                                                    <thead>
-                                                      <tr className="border-b">
-                                                        <th className="text-center p-2 text-sm font-semibold w-12">
-                                                          <input
-                                                            type="checkbox"
-                                                            checked={classAttendances.every(
-                                                              (a) =>
-                                                                selectedIds.has(
-                                                                  a.id
-                                                                )
-                                                            )}
-                                                            onChange={() =>
-                                                              handleSelectAll(
-                                                                classAttendances
-                                                              )
-                                                            }
-                                                            className="cursor-pointer"
-                                                          />
-                                                        </th>
-                                                        <th className="text-left p-2 text-sm font-semibold">
-                                                          이름
-                                                        </th>
-                                                        <th className="text-left p-2 text-sm font-semibold">
-                                                          전화번호
-                                                        </th>
-                                                        <th className="text-left p-2 text-sm font-semibold">
-                                                          상태
-                                                        </th>
-                                                        <th className="text-left p-2 text-sm font-semibold">
-                                                          메모
-                                                        </th>
-                                                      </tr>
-                                                    </thead>
-                                                    <tbody>
-                                                      {classAttendances.map(
-                                                        (attendance) => (
-                                                          <tr
-                                                            key={attendance.id}
-                                                            className="border-b hover:bg-muted/50"
-                                                          >
-                                                            <td className="p-2 text-center">
-                                                              <input
-                                                                type="checkbox"
-                                                                checked={selectedIds.has(
-                                                                  attendance.id
-                                                                )}
-                                                                onChange={() =>
-                                                                  handleToggleCheck(
-                                                                    attendance.id
-                                                                  )
-                                                                }
-                                                                className="cursor-pointer"
-                                                              />
-                                                            </td>
-                                                            <td className="p-2">
-                                                              {
-                                                                attendance.memberName
-                                                              }
-                                                            </td>
-                                                            <td className="p-2 text-sm text-muted-foreground">
-                                                              {attendance.memberPhone ||
-                                                                "-"}
-                                                            </td>
-                                                            <td className="p-2">
-                                                              <span
-                                                                className={`px-2 py-1 rounded text-xs font-medium ${
-                                                                  attendance.status ===
-                                                                  "출석"
-                                                                    ? "bg-green-100 text-green-800"
-                                                                    : attendance.status ===
-                                                                      "결석"
-                                                                    ? "bg-red-100 text-red-800"
-                                                                    : attendance.status ===
-                                                                      "지각"
-                                                                    ? "bg-yellow-100 text-yellow-800"
-                                                                    : "bg-gray-100 text-gray-800"
-                                                                }`}
-                                                              >
-                                                                {attendance.status ||
-                                                                  "미입력"}
-                                                              </span>
-                                                            </td>
-                                                            <td className="p-2">
-                                                              <input
-                                                                type="text"
-                                                                value={
-                                                                  memos[
-                                                                    attendance
-                                                                      .id
-                                                                  ] || ""
-                                                                }
-                                                                onChange={(e) =>
-                                                                  handleMemoChange(
-                                                                    attendance.id,
-                                                                    e.target
-                                                                      .value
-                                                                  )
-                                                                }
-                                                                placeholder="메모 입력"
-                                                                className="w-full px-2 py-1 text-sm border rounded focus:outline-none focus:ring-2 focus:ring-primary"
-                                                              />
-                                                            </td>
-                                                          </tr>
-                                                        )
-                                                      )}
-                                                    </tbody>
-                                                  </table>
-                                                </div>
-                                              </div>
-                                            )
-                                          )}
-                                        </div>
-                                      </div>
-                                    );
-                                  }
+                            <div className="flex gap-2 mb-4">
+                              <button
+                                onClick={() =>
+                                  handleUpdateAttendance(
+                                    roundAttendances,
+                                    "출석"
+                                  )
                                 }
-                              )}
+                                disabled={updating || selectedIds.size === 0}
+                                className="flex-1 px-4 py-2 text-sm bg-green-600 text-white rounded-md hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium"
+                              >
+                                출석
+                              </button>
+                              <button
+                                onClick={() =>
+                                  handleUpdateAttendance(
+                                    roundAttendances,
+                                    "결석"
+                                  )
+                                }
+                                disabled={updating || selectedIds.size === 0}
+                                className="flex-1 px-4 py-2 text-sm bg-pink-600 text-white rounded-md hover:bg-pink-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium"
+                              >
+                                결석
+                              </button>
+                              <button
+                                onClick={() =>
+                                  handleUpdateAttendance(
+                                    roundAttendances,
+                                    "지각"
+                                  )
+                                }
+                                disabled={updating || selectedIds.size === 0}
+                                className="flex-1 px-4 py-2 text-sm bg-yellow-500 text-white rounded-md hover:bg-yellow-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium"
+                              >
+                                지각
+                              </button>
                             </div>
                           </div>
-                        );
-                      })}
-                    </div>
-                  );
-                }
-              )}
-            </div>
-          )}
-        </CardContent>
-      </Card>
+
+                          {/* 학년별/반별 그룹 표시 */}
+                          <div className="space-y-4">
+                            {Object.entries(groups)
+                              .sort(([a], [b]) => {
+                                // 학년별 정렬 (1학년, 2학년, ... 기타)
+                                const gradeA = a.replace("학년", "");
+                                const gradeB = b.replace("학년", "");
+                                if (a === "기타") return 1;
+                                if (b === "기타") return -1;
+                                return parseInt(gradeA) - parseInt(gradeB);
+                              })
+                              .map(([groupName, groupData]) => {
+                                const isChoir =
+                                  ministryName === "시온성가대" ||
+                                  ministryName === "예루살렘성가대";
+
+                                if (isChoir || Array.isArray(groupData)) {
+                                  // 성가대: 파트별로 직접 표시
+                                  const groupAttendances = groupData.sort(
+                                    (a, b) => {
+                                      // 이름 순서로 정렬
+                                      return (a.memberName || "").localeCompare(
+                                        b.memberName || ""
+                                      );
+                                    }
+                                  );
+                                  const groupCounts =
+                                    getCounts(groupAttendances);
+                                  return (
+                                    <div key={groupName} className="space-y-3">
+                                      <div className="flex items-center gap-2">
+                                        <h4 className="text-base font-semibold bg-purple-100 text-purple-800 px-3 py-1 rounded-md">
+                                          {groupName}
+                                        </h4>
+                                        <span className="text-sm text-muted-foreground">
+                                          {groupCounts.attended}/
+                                          {groupCounts.total}명
+                                        </span>
+                                      </div>
+                                      <div className="space-y-2">
+                                        {groupAttendances.map((attendance) => (
+                                          <div
+                                            key={attendance.id}
+                                            className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg border"
+                                          >
+                                            <input
+                                              type="checkbox"
+                                              checked={selectedIds.has(
+                                                attendance.id
+                                              )}
+                                              onChange={() =>
+                                                handleToggleCheck(attendance.id)
+                                              }
+                                              className="cursor-pointer w-5 h-5"
+                                            />
+                                            <div className="w-10 h-10 rounded-full bg-gray-300 flex items-center justify-center text-lg font-semibold text-gray-700 shrink-0">
+                                              {attendance.memberName?.[0] ||
+                                                "?"}
+                                            </div>
+                                            <div className="flex-1 min-w-0">
+                                              <div className="flex items-center gap-2 mb-1">
+                                                <span className="font-medium">
+                                                  {attendance.memberName}
+                                                </span>
+                                                {attendance.status && (
+                                                  <span
+                                                    className={`px-2 py-0.5 rounded text-xs font-medium ${
+                                                      attendance.status ===
+                                                      "출석"
+                                                        ? "bg-green-100 text-green-800"
+                                                        : attendance.status ===
+                                                          "결석"
+                                                        ? "bg-pink-100 text-pink-800"
+                                                        : attendance.status ===
+                                                          "지각"
+                                                        ? "bg-yellow-100 text-yellow-800"
+                                                        : "bg-gray-100 text-gray-800"
+                                                    }`}
+                                                  >
+                                                    {attendance.status}
+                                                  </span>
+                                                )}
+                                              </div>
+                                              <select
+                                                value={
+                                                  memos[attendance.id] || ""
+                                                }
+                                                onChange={(e) =>
+                                                  handleMemoChange(
+                                                    attendance.id,
+                                                    e.target.value
+                                                  )
+                                                }
+                                                className="w-full px-2 py-1 text-xs border rounded focus:outline-none focus:ring-1 focus:ring-primary bg-white"
+                                              >
+                                                <option value="">
+                                                  사유 선택
+                                                </option>
+                                                {REASONS.map((reason) => (
+                                                  <option
+                                                    key={reason}
+                                                    value={reason}
+                                                  >
+                                                    {reason}
+                                                  </option>
+                                                ))}
+                                              </select>
+                                            </div>
+                                            {attendance.memberPhone && (
+                                              <button
+                                                onClick={() =>
+                                                  window.open(
+                                                    `tel:${attendance.memberPhone}`
+                                                  )
+                                                }
+                                                className="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center shrink-0 hover:bg-gray-300 transition-colors"
+                                              >
+                                                📞
+                                              </button>
+                                            )}
+                                          </div>
+                                        ))}
+                                      </div>
+                                    </div>
+                                  );
+                                } else {
+                                  // 다른 부서: 학년별로 그룹화하고, 각 학년 내에서 반별로 표시
+                                  const gradeCounts = getCounts(
+                                    Object.values(groupData).flat()
+                                  );
+                                  return (
+                                    <div key={groupName} className="space-y-3">
+                                      <div className="flex items-center gap-2">
+                                        <h4 className="text-base font-semibold bg-purple-100 text-purple-800 px-3 py-1 rounded-md">
+                                          {groupName}
+                                        </h4>
+                                        <span className="text-sm text-muted-foreground">
+                                          {gradeCounts.attended}/
+                                          {gradeCounts.total}명
+                                        </span>
+                                      </div>
+                                      <div className="space-y-3 pl-4">
+                                        {Object.entries(groupData)
+                                          .sort(([a], [b]) => {
+                                            // 반별 정렬 (1반, 2반, ... 기타)
+                                            const classA = a.replace("반", "");
+                                            const classB = b.replace("반", "");
+                                            if (a === "기타") return 1;
+                                            if (b === "기타") return -1;
+                                            return (
+                                              parseInt(classA) -
+                                              parseInt(classB)
+                                            );
+                                          })
+                                          .map(
+                                            ([className, classAttendances]) => {
+                                              const classCounts =
+                                                getCounts(classAttendances);
+                                              // 반 내에서 이름 순서로 정렬
+                                              const sortedClassAttendances = [
+                                                ...classAttendances,
+                                              ].sort((a, b) => {
+                                                return (
+                                                  a.memberName || ""
+                                                ).localeCompare(
+                                                  b.memberName || ""
+                                                );
+                                              });
+                                              return (
+                                                <div
+                                                  key={className}
+                                                  className="space-y-2"
+                                                >
+                                                  <div className="flex items-center gap-2">
+                                                    <h5 className="text-sm font-medium">
+                                                      {className}
+                                                    </h5>
+                                                    <span className="text-xs text-muted-foreground">
+                                                      {classCounts.attended}/
+                                                      {classCounts.total}명
+                                                    </span>
+                                                  </div>
+                                                  <div className="space-y-2">
+                                                    {sortedClassAttendances.map(
+                                                      (attendance) => (
+                                                        <div
+                                                          key={attendance.id}
+                                                          className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg border"
+                                                        >
+                                                          <input
+                                                            type="checkbox"
+                                                            checked={selectedIds.has(
+                                                              attendance.id
+                                                            )}
+                                                            onChange={() =>
+                                                              handleToggleCheck(
+                                                                attendance.id
+                                                              )
+                                                            }
+                                                            className="cursor-pointer w-5 h-5"
+                                                          />
+                                                          <div className="w-10 h-10 rounded-full bg-gray-300 flex items-center justify-center text-lg font-semibold text-gray-700 shrink-0">
+                                                            {attendance
+                                                              .memberName?.[0] ||
+                                                              "?"}
+                                                          </div>
+                                                          <div className="flex-1 min-w-0">
+                                                            <div className="flex items-center gap-2 mb-1">
+                                                              <span className="font-medium">
+                                                                {
+                                                                  attendance.memberName
+                                                                }
+                                                              </span>
+                                                              {attendance.status && (
+                                                                <span
+                                                                  className={`px-2 py-0.5 rounded text-xs font-medium ${
+                                                                    attendance.status ===
+                                                                    "출석"
+                                                                      ? "bg-green-100 text-green-800"
+                                                                      : attendance.status ===
+                                                                        "결석"
+                                                                      ? "bg-pink-100 text-pink-800"
+                                                                      : attendance.status ===
+                                                                        "지각"
+                                                                      ? "bg-yellow-100 text-yellow-800"
+                                                                      : "bg-gray-100 text-gray-800"
+                                                                  }`}
+                                                                >
+                                                                  {
+                                                                    attendance.status
+                                                                  }
+                                                                </span>
+                                                              )}
+                                                            </div>
+                                                            <input
+                                                              type="text"
+                                                              value={
+                                                                memos[
+                                                                  attendance.id
+                                                                ] || ""
+                                                              }
+                                                              onChange={(e) =>
+                                                                handleMemoChange(
+                                                                  attendance.id,
+                                                                  e.target.value
+                                                                )
+                                                              }
+                                                              placeholder="개인사정"
+                                                              className="w-full px-2 py-1 text-xs border rounded focus:outline-none focus:ring-1 focus:ring-primary"
+                                                            />
+                                                          </div>
+                                                          {attendance.memberPhone && (
+                                                            <button
+                                                              onClick={() =>
+                                                                window.open(
+                                                                  `tel:${attendance.memberPhone}`
+                                                                )
+                                                              }
+                                                              className="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center shrink-0 hover:bg-gray-300 transition-colors"
+                                                            >
+                                                              📞
+                                                            </button>
+                                                          )}
+                                                        </div>
+                                                      )
+                                                    )}
+                                                  </div>
+                                                </div>
+                                              );
+                                            }
+                                          )}
+                                      </div>
+                                    </div>
+                                  );
+                                }
+                              })}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                );
+              }
+            )}
+          </div>
+        )}
+      </div>
     </div>
   );
 }

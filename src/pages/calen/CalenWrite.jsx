@@ -179,7 +179,7 @@ function CalenWrite() {
       <Card className="max-w-full sm:max-w-2xl md:max-w-4xl lg:max-w-6xl mx-auto">
         <CardHeader className="p-4 sm:p-6">
           <CardTitle className="text-xl sm:text-2xl md:text-3xl font-bold text-center">
-            찬양 추가하기{code && ` - ${code}`}
+            일정 추가하기{code && ` - ${code}`}
           </CardTitle>
         </CardHeader>
         <CardContent className="p-4 sm:p-6">
@@ -417,7 +417,7 @@ function CalenWrite() {
                 disabled={submitting}
                 className="flex-1 px-6 py-3 bg-primary text-primary-foreground rounded-lg font-medium hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
               >
-                {submitting ? "추가 중..." : "찬양 추가"}
+                {submitting ? "추가 중..." : "일정 추가"}
               </button>
               <button
                 type="button"

@@ -190,8 +190,8 @@ function CalenList() {
           {filteredSongs.length === 0 ? (
             <div className="text-center text-muted-foreground py-8">
               {code
-                ? `${code}의 찬양 데이터가 없습니다.`
-                : "찬양 데이터가 없습니다."}
+                ? `${code}의 일정 데이터가 없습니다.`
+                : "일정 데이터가 없습니다."}
             </div>
           ) : (
             <div className="space-y-4">
