@@ -49,24 +49,30 @@ function PointList() {
     setError(null);
 
     try {
-      // member_points에서 모든 회원 포인트 가져오기
-      const { data, error: pointsError } = await supabase
-        .from("member_points")
-        .select("*")
-        .order("balace", { ascending: false });
+      // 현재 년도 기준으로 membership에서 모든 회원 가져오기
+      const currentYear = new Date().getFullYear();
 
-      if (pointsError) {
-        throw pointsError;
+      // membership 테이블에서 현재 년도, is_active=true인 모든 회원 가져오기
+      const { data: allMemberships, error: membershipError } = await supabase
+        .from("membership")
+        .select("member_id, ministry_id, year")
+        .eq("year", currentYear)
+        .eq("is_active", true);
+
+      if (membershipError) {
+        throw membershipError;
       }
 
-      if (!data || data.length === 0) {
+      if (!allMemberships || allMemberships.length === 0) {
         setMemberPoints([]);
         setLoading(false);
         return;
       }
 
-      // 모든 고유한 member_id 수집 (member_points의 id가 member_id)
-      const memberIds = data.map((point) => point.id).filter(Boolean);
+      // 모든 고유한 member_id 수집
+      const memberIds = [
+        ...new Set(allMemberships.map((m) => m.member_id).filter(Boolean)),
+      ];
 
       // members 테이블에서 일괄 조회
       const { data: membersData, error: membersError } = await supabase
@@ -84,35 +90,25 @@ function PointList() {
         membersMap[member.id] = member;
       });
 
-      // 현재 년도 기준으로 membership 조회
-      const currentYear = new Date().getFullYear();
+      // member_points에서 포인트 정보 일괄 조회
+      const { data: pointsData, error: pointsError } = await supabase
+        .from("member_points")
+        .select("id, balace")
+        .in("id", memberIds);
 
-      // 모든 고유한 ministry_id 수집 (membership 조회용)
-      const { data: allMemberships, error: membershipError } = await supabase
-        .from("membership")
-        .select("member_id, ministry_id, year")
-        .in("member_id", memberIds)
-        .eq("year", currentYear)
-        .eq("is_active", true);
-
-      if (membershipError) {
-        console.error("membership 조회 오류:", membershipError);
+      if (pointsError) {
+        console.error("포인트 조회 오류:", pointsError);
       }
 
-      // member_id -> ministry_id 매핑 생성 (현재 년도 기준)
-      const memberMinistryMap = {};
-      if (allMemberships) {
-        allMemberships.forEach((membership) => {
-          // 현재 년도 membership이 있으면 사용, 없으면 null
-          if (membership.year === currentYear) {
-            memberMinistryMap[membership.member_id] = membership.ministry_id;
-          }
-        });
-      }
+      // member_id -> 포인트 정보 매핑 생성
+      const pointsMap = {};
+      (pointsData || []).forEach((point) => {
+        pointsMap[point.id] = point.balace || 0;
+      });
 
       // ministry_id 목록 수집
       const ministryIds = [
-        ...new Set(Object.values(memberMinistryMap).filter(Boolean)),
+        ...new Set(allMemberships.map((m) => m.ministry_id).filter(Boolean)),
       ];
 
       // ministry 정보 일괄 조회
@@ -131,25 +127,33 @@ function PointList() {
         ministriesMap[ministry.id] = ministry;
       });
 
-      // 회원 포인트 데이터에 회원 정보와 부서 정보 추가
-      const pointsWithInfo = (data || []).map((point) => {
-        const member = membersMap[point.id];
-        const ministryId = memberMinistryMap[point.id];
+      // member_id -> ministry_id 매핑 생성 (현재 년도 기준, 각 회원의 첫 번째 membership 사용)
+      const memberMinistryMap = {};
+      allMemberships.forEach((membership) => {
+        if (!memberMinistryMap[membership.member_id]) {
+          memberMinistryMap[membership.member_id] = membership.ministry_id;
+        }
+      });
+
+      // 회원 리스트 생성 (membership 기준)
+      const membersWithInfo = memberIds.map((memberId) => {
+        const member = membersMap[memberId];
+        const ministryId = memberMinistryMap[memberId];
         const ministry = ministryId ? ministriesMap[ministryId] : null;
+        const balance = pointsMap[memberId] || 0;
 
         return {
-          ...point,
-          memberId: point.id,
+          memberId: memberId,
           memberName: member?.name || "알 수 없음",
           memberPhone: member?.phone || "",
           memberPhoto: member?.photo || null,
           ministryName: ministry?.name || "미소속",
           ministryId: ministryId || null,
-          balance: point.balace || 0, // balace는 오타지만 실제 컬럼명
+          balance: balance,
         };
       });
 
-      setMemberPoints(pointsWithInfo);
+      setMemberPoints(membersWithInfo);
     } catch (err) {
       console.error("회원 포인트 가져오기 오류:", err);
       setError(err.message || "회원 포인트를 가져오는 중 오류가 발생했습니다.");

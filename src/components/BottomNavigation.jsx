@@ -8,6 +8,7 @@ import {
   MdPeople,
   MdMusicNote,
   MdSchool,
+  MdStars,
 } from "react-icons/md";
 import supabase from "../utils/supabase";
 
@@ -159,6 +160,18 @@ function BottomNavigation() {
         icon,
       });
 
+      // 유년부 또는 초등부인 경우 포인트 메뉴 추가
+      if (
+        activeMinistry.name === "유년부" ||
+        activeMinistry.name === "초등부"
+      ) {
+        items.push({
+          path: "/point/list",
+          label: "포인트",
+          icon: MdStars,
+        });
+      }
+
       // 남은 공간에 기본 메뉴 추가
       const remainingSlots = 5 - items.length;
       if (remainingSlots > 0) {
@@ -202,6 +215,18 @@ function BottomNavigation() {
       });
 
       items.push(...ministryItems);
+
+      // 선택된 ministry 중 유년부 또는 초등부가 있으면 포인트 메뉴 추가
+      const hasChildMinistry = selectedMinistries.some(
+        (m) => m.name === "유년부" || m.name === "초등부"
+      );
+      if (hasChildMinistry && items.length < 5) {
+        items.push({
+          path: "/point/list",
+          label: "포인트",
+          icon: MdStars,
+        });
+      }
 
       // 남은 공간에 기본 메뉴 추가
       const remainingSlots = 5 - items.length;
