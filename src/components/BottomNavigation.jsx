@@ -166,7 +166,7 @@ function BottomNavigation() {
         activeMinistry.name === "초등부"
       ) {
         items.push({
-          path: "/point/list",
+          path: `/point/list?code=${encodeURIComponent(activeMinistry.name)}`,
           label: "포인트",
           icon: MdStars,
         });
@@ -217,12 +217,12 @@ function BottomNavigation() {
       items.push(...ministryItems);
 
       // 선택된 ministry 중 유년부 또는 초등부가 있으면 포인트 메뉴 추가
-      const hasChildMinistry = selectedMinistries.some(
+      const childMinistry = selectedMinistries.find(
         (m) => m.name === "유년부" || m.name === "초등부"
       );
-      if (hasChildMinistry && items.length < 5) {
+      if (childMinistry && items.length < 5) {
         items.push({
-          path: "/point/list",
+          path: `/point/list?code=${encodeURIComponent(childMinistry.name)}`,
           label: "포인트",
           icon: MdStars,
         });

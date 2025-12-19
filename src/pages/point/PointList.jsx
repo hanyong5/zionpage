@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from "react";
+import { useLocation } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { format } from "date-fns";
 import { ko } from "date-fns/locale/ko";
@@ -6,6 +7,7 @@ import supabase from "../../utils/supabase";
 import { source_subtype } from "./pointconst";
 
 function PointList() {
+  const location = useLocation();
   const [memberPoints, setMemberPoints] = useState([]);
   const [ministries, setMinistries] = useState([]);
   const [selectedMinistry, setSelectedMinistry] = useState("전체");
@@ -20,6 +22,15 @@ function PointList() {
   const [pointSubtype, setPointSubtype] = useState("");
   const [pointMemo, setPointMemo] = useState("");
   const [processingPoints, setProcessingPoints] = useState(false);
+
+  // URL 쿼리 파라미터에서 부서 정보 읽기
+  useEffect(() => {
+    const searchParams = new URLSearchParams(location.search);
+    const code = searchParams.get("code");
+    if (code) {
+      setSelectedMinistry(code);
+    }
+  }, [location.search]);
 
   // 부서 목록 가져오기
   useEffect(() => {
@@ -455,35 +466,37 @@ function PointList() {
             {currentYear}년 회원 포인트 리스트
           </CardTitle>
 
-          {/* 부서 탭 메뉴 */}
-          <div className="flex flex-wrap gap-2 mb-4 border-b">
-            <button
-              onClick={() => setSelectedMinistry("전체")}
-              className={`px-4 py-2 font-medium transition-colors rounded-t-lg ${
-                selectedMinistry === "전체"
-                  ? "bg-primary text-primary-foreground border-b-2 border-primary"
-                  : "bg-gray-100 text-gray-700 hover:bg-gray-200"
-              }`}
-            >
-              전체 ({memberPoints.length})
-            </button>
-            {ministries.map((ministry) => {
-              const count = ministryStats[ministry.name]?.count || 0;
-              return (
-                <button
-                  key={ministry.id}
-                  onClick={() => setSelectedMinistry(ministry.name)}
-                  className={`px-4 py-2 font-medium transition-colors rounded-t-lg ${
-                    selectedMinistry === ministry.name
-                      ? "bg-primary text-primary-foreground border-b-2 border-primary"
-                      : "bg-gray-100 text-gray-700 hover:bg-gray-200"
-                  }`}
-                >
-                  {ministry.name} ({count})
-                </button>
-              );
-            })}
-          </div>
+          {/* 부서 탭 메뉴 - URL 쿼리 파라미터가 없을 때만 표시 */}
+          {!new URLSearchParams(location.search).get("code") && (
+            <div className="flex flex-wrap gap-2 mb-4 border-b">
+              <button
+                onClick={() => setSelectedMinistry("전체")}
+                className={`px-4 py-2 font-medium transition-colors rounded-t-lg ${
+                  selectedMinistry === "전체"
+                    ? "bg-primary text-primary-foreground border-b-2 border-primary"
+                    : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                }`}
+              >
+                전체 ({memberPoints.length})
+              </button>
+              {ministries.map((ministry) => {
+                const count = ministryStats[ministry.name]?.count || 0;
+                return (
+                  <button
+                    key={ministry.id}
+                    onClick={() => setSelectedMinistry(ministry.name)}
+                    className={`px-4 py-2 font-medium transition-colors rounded-t-lg ${
+                      selectedMinistry === ministry.name
+                        ? "bg-primary text-primary-foreground border-b-2 border-primary"
+                        : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                    }`}
+                  >
+                    {ministry.name} ({count})
+                  </button>
+                );
+              })}
+            </div>
+          )}
 
           {/* 포인트 추가/차감 버튼 */}
           {selectedIds.size > 0 && (
